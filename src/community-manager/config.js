@@ -11,7 +11,7 @@ export function getAllowedGroups() {
 // Informa quais integracoes estao habilitadas sem expor segredos.
 export function getServiceStatus() {
   return {
-    circle: Boolean(process.env.CIRCLE_API_TOKEN && process.env.COMMUNITY_ID),
+    circle: Boolean(process.env.CIRCLE_API_TOKEN),
     whatsapp: Boolean(
       (process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL) &&
         (process.env.EVOLUTION_API_KEY || process.env.WHATSAPP_API_KEY),

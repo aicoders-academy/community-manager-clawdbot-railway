@@ -1,5 +1,6 @@
 import { fetchAiNews } from "./news.js";
 import { callOpenRouter } from "./openrouter.js";
+import { getServiceStatus } from "./config.js";
 import { suggestPosts } from "./suggestions.js";
 import { summarizeHotTopics } from "./summary.js";
 import { truncateText } from "./text.js";
@@ -17,6 +18,33 @@ function friendlyMissingData({ task, missing, nextStep }) {
   ]
     .filter(hasText)
     .join("\n");
+}
+
+function sourceStatusMessage({ circlePosts = [], whatsappMessages = [] } = {}) {
+  const services = getServiceStatus();
+  const parts = [];
+
+  if (services.circle) {
+    parts.push(
+      circlePosts.length > 0
+        ? `Circle esta configurado e retornou ${circlePosts.length} post(s), mas nenhum entrou neste criterio.`
+        : "Circle esta configurado, mas nao retornou posts para esta consulta.",
+    );
+  } else {
+    parts.push("Circle nao esta configurado: falta CIRCLE_API_TOKEN.");
+  }
+
+  if (services.whatsapp) {
+    parts.push(
+      whatsappMessages.length > 0
+        ? `WhatsApp esta configurado e tenho ${whatsappMessages.length} mensagem(ns) dos grupos permitidos.`
+        : "WhatsApp esta configurado, mas ainda nao tenho mensagens dos grupos permitidos.",
+    );
+  } else {
+    parts.push("WhatsApp nao esta configurado; vou trabalhar sem ele por enquanto.");
+  }
+
+  return parts.join(" ");
 }
 
 function toDate(value) {
@@ -121,8 +149,8 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
   if (!circleContext && !whatsappContext) {
     return friendlyMissingData({
       task: "os destaques da semana",
-      missing: "nao encontrei posts recentes do Circle nem mensagens dos grupos autorizados do WhatsApp.",
-      nextStep: "confira as variaveis do Circle/WhatsApp e garanta que os grupos certos estao em ALLOWED_GROUPS.",
+      missing: sourceStatusMessage({ circlePosts, whatsappMessages }),
+      nextStep: "se o Circle ja esta configurado, confira se a API esta retornando posts recentes e quais campos de data/engajamento vem no payload.",
     });
   }
 
@@ -347,7 +375,7 @@ export function describeCapabilities() {
     "- `qual foi o post mais curtido do dia?`",
     "",
     "Pra eu responder bem as tarefas da comunidade, preciso destes acessos:",
-    "- Circle configurado com `CIRCLE_API_TOKEN` e `COMMUNITY_ID`.",
+    "- Circle configurado com `CIRCLE_API_TOKEN`.",
     "- WhatsApp/Evolution configurado e grupos liberados em `ALLOWED_GROUPS`.",
     "- OpenRouter configurado com `OPENROUTER_API_KEY`.",
     "- Slack configurado com `SLACK_BOT_TOKEN` e `SLACK_SIGNING_SECRET`.",
