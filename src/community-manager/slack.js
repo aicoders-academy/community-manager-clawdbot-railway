@@ -84,6 +84,14 @@ export function isSlackTaskRequest(text) {
   return /\b(tarefa|tarefas|resumo|digest|posts?|pauta|pautas)\b/i.test(String(text || ""));
 }
 
+// Define onde responder para evitar duplicidade entre canal e thread.
+export function slackReplyTarget(event = {}) {
+  return {
+    channel: event.channel,
+    textMode: event.channel_type === "im" ? "dm" : "channel",
+  };
+}
+
 // Envia uma resposta em canal/thread usando Slack Web API.
 export async function postSlackMessage({ channel, text, threadTs }) {
   const botToken = process.env.SLACK_BOT_TOKEN;
@@ -99,7 +107,7 @@ export async function postSlackMessage({ channel, text, threadTs }) {
       body: JSON.stringify({
         channel,
         text: truncateText(text, 3500),
-        thread_ts: threadTs,
+        ...(threadTs ? { thread_ts: threadTs } : {}),
       }),
     });
 

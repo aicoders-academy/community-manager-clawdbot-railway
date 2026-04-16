@@ -9,10 +9,22 @@ export {
   isSlackTaskRequest,
   normalizeSlackPrompt,
   postSlackMessage,
+  slackReplyTarget,
   verifySlackRequest,
 } from "./community-manager/slack.js";
 export { suggestPosts } from "./community-manager/suggestions.js";
 export { summarizeHotTopics } from "./community-manager/summary.js";
+export {
+  answerCommunityManagerChat,
+  detectTaskIntent,
+  describeCapabilities,
+  getAiNewsPostIdeas,
+  getCommunityPostIdeas,
+  getDailySummary,
+  getModerationAlerts,
+  getWeeklyHighlights,
+  runCommunityTask,
+} from "./community-manager/tasks.js";
 export {
   extractGroupId,
   extractInstance,
