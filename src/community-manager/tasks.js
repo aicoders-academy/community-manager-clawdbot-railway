@@ -8,6 +8,17 @@ function hasText(value) {
   return String(value || "").trim().length > 0;
 }
 
+function friendlyMissingData({ task, missing, nextStep }) {
+  return [
+    `Eu ate consigo te ajudar com ${task}, mas agora nao tenho dados suficientes pra fazer isso com seguranca.`,
+    "",
+    missing ? `O que faltou: ${missing}` : "",
+    nextStep ? `Como resolver: ${nextStep}` : "",
+  ]
+    .filter(hasText)
+    .join("\n");
+}
+
 function toDate(value) {
   const date = value ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime()) ? date : null;
@@ -108,7 +119,11 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
   const whatsappContext = whatsappLines(whatsappMessages, 60);
 
   if (!circleContext && !whatsappContext) {
-    return "Ainda nao tenho dados suficientes para apontar destaques da semana.";
+    return friendlyMissingData({
+      task: "os destaques da semana",
+      missing: "nao encontrei posts recentes do Circle nem mensagens dos grupos autorizados do WhatsApp.",
+      nextStep: "confira as variaveis do Circle/WhatsApp e garanta que os grupos certos estao em ALLOWED_GROUPS.",
+    });
   }
 
   const result = await callOpenRouter([
@@ -123,7 +138,11 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
     },
   ]);
 
-  return result || "Destaques indisponiveis: OpenRouter nao configurado ou sem contexto suficiente.";
+  return result || friendlyMissingData({
+    task: "os destaques da semana",
+    missing: "o OpenRouter nao respondeu ou OPENROUTER_API_KEY nao esta configurada.",
+    nextStep: "confira OPENROUTER_API_KEY no Railway e tente de novo.",
+  });
 }
 
 // Retorna o post do Circle com mais curtidas no dia atual.
@@ -134,11 +153,12 @@ export async function getTopLikedPostToday({ circlePosts = [] } = {}) {
     .sort((a, b) => b.likes - a.likes);
 
   if (posts.length === 0) {
-    return [
-      "Ainda nao consigo apontar o post mais curtido de hoje.",
-      "Nao encontrei posts do Circle criados hoje com campo de curtidas/reacoes no payload.",
-      "Verifique se a integracao Circle esta retornando `likes_count`, `like_count`, `likes` ou `reactions_count`.",
-    ].join("\n");
+    return friendlyMissingData({
+      task: "o post mais curtido de hoje",
+      missing:
+        "nao encontrei posts do Circle criados hoje com campos de curtidas/reacoes como likes_count, like_count, likes ou reactions_count.",
+      nextStep: "confira se o Circle esta retornando posts de hoje e se esses campos existem no payload.",
+    });
   }
 
   const top = posts[0];
@@ -155,7 +175,13 @@ export async function getTopLikedPostToday({ circlePosts = [] } = {}) {
 // Gera alerta de moderacao consolidado para mensagens recentes da comunidade.
 export async function getModerationAlerts({ whatsappMessages = [] } = {}) {
   const context = whatsappLines(whatsappMessages, 80);
-  if (!context) return "Nenhuma mensagem recente de grupos autorizados para revisar moderacao.";
+  if (!context) {
+    return friendlyMissingData({
+      task: "alertas de moderacao",
+      missing: "nao recebi mensagens recentes dos grupos autorizados do WhatsApp.",
+      nextStep: "confira EVOLUTION_API_URL, EVOLUTION_API_KEY e ALLOWED_GROUPS; depois mande novas mensagens nos grupos permitidos.",
+    });
+  }
 
   const result = await callOpenRouter([
     {
@@ -169,7 +195,11 @@ export async function getModerationAlerts({ whatsappMessages = [] } = {}) {
     },
   ]);
 
-  return result || "Alertas de moderacao indisponiveis: OpenRouter nao configurado.";
+  return result || friendlyMissingData({
+    task: "alertas de moderacao",
+    missing: "o OpenRouter nao respondeu ou OPENROUTER_API_KEY nao esta configurada.",
+    nextStep: "confira OPENROUTER_API_KEY no Railway e tente de novo.",
+  });
 }
 
 // Gera um resumo diario curto do que aconteceu nos grupos e no Circle.
@@ -201,11 +231,23 @@ export async function getAiNewsPostIdeas({ circlePosts = [], whatsappMessages = 
     },
   ]);
 
-  return result || "Ideias baseadas em noticias indisponiveis: OpenRouter ou RSS indisponivel.";
+  return result || friendlyMissingData({
+    task: "ideias baseadas em noticias de IA",
+    missing: "nao consegui acessar o OpenRouter ou o RSS de noticias.",
+    nextStep: "confira OPENROUTER_API_KEY e AI_NEWS_RSS_URL no Railway.",
+  });
 }
 
 // Responde conversa livre mantendo os limites de evidencias da comunidade.
 export async function answerCommunityManagerChat({ prompt, circlePosts = [], whatsappMessages = [] } = {}) {
+  const normalizedPrompt = normalizeIntentText(prompt);
+  if (/\b(oi|ola|olá|e ai|e aí|bom dia|boa tarde|boa noite|tudo bem|td bem|como vai)\b/.test(normalizedPrompt)) {
+    return [
+      "Tudo bem por aqui. Posso conversar contigo ou executar tarefas da comunidade.",
+      "Por exemplo: me pede os destaques da semana, um resumo diario, alertas de diretrizes ou ideias de posts.",
+    ].join("\n");
+  }
+
   const circleContext = circleLines(circlePosts, 10);
   const whatsappContext = whatsappLines(whatsappMessages, 30);
 
@@ -232,7 +274,11 @@ export async function answerCommunityManagerChat({ prompt, circlePosts = [], wha
     },
   ]);
 
-  return result || "Nao consegui responder agora porque o OpenRouter nao esta configurado ou esta indisponivel.";
+  return result || [
+    "Consigo conversar contigo, mas agora nao consegui acessar o motor de IA.",
+    "O provavel problema e OPENROUTER_API_KEY ausente ou OpenRouter indisponivel.",
+    "Ainda posso responder comandos que nao dependem de IA quando houver dados do Circle/WhatsApp.",
+  ].join("\n");
 }
 
 function normalizeIntentText(text) {
@@ -254,6 +300,9 @@ export function detectTaskIntent(text) {
   }
   if (/\b(post|publicacao|conteudo)\b/.test(prompt) && /\b(mais curtido|mais likes|maior curtida|top curtidas)\b/.test(prompt) && /\b(hoje|dia)\b/.test(prompt)) {
     return "top_liked_today";
+  }
+  if (/\b(oi|ola|e ai|bom dia|boa tarde|boa noite|tudo bem|td bem|como vai)\b/.test(prompt)) {
+    return "chat";
   }
   if (/\b(destaque|destaques|semana|semanal|mais curtido|mais comentado|top post|topico quente)\b/.test(prompt)) {
     return "weekly_highlights";
@@ -279,17 +328,17 @@ export function detectTaskIntent(text) {
 // Explica as capacidades do agente e exemplos de comandos.
 export function describeCapabilities() {
   return [
-    "*Eu posso te ajudar como Community Manager da comunidade.*",
+    "Eu sou seu agente de Community Manager. Posso bater papo contigo e tambem executar algumas tarefas quando voce pedir.",
     "",
-    "*Tarefas que consigo executar:*",
+    "O que eu consigo fazer hoje:",
     "- Pegar os destaques da semana: posts, comentarios ou temas com mais sinal de engajamento.",
     "- Avisar possiveis quebras de diretrizes nas mensagens recentes dos grupos autorizados.",
     "- Propor conteudos com base no que as pessoas estao falando.",
     "- Fazer resumo diario do que aconteceu nos grupos e no Circle.",
     "- Propor posts com base em noticias recentes do mundo da IA.",
-    "- Conversar com voce sobre a comunidade, sem inventar dados quando faltar contexto.",
+    "- Conversar com voce de forma normal. Se faltar dado, eu te digo o que nao consegui acessar.",
     "",
-    "*Exemplos de pedidos:*",
+    "Exemplos que voce pode mandar:",
     "- `quais foram os destaques da semana?`",
     "- `tem alguem quebrando as diretrizes?`",
     "- `me faz um resumo diario dos grupos`",
@@ -297,7 +346,7 @@ export function describeCapabilities() {
     "- `sugira posts com noticias de IA`",
     "- `qual foi o post mais curtido do dia?`",
     "",
-    "*O que preciso para responder bem:*",
+    "Pra eu responder bem as tarefas da comunidade, preciso destes acessos:",
     "- Circle configurado com `CIRCLE_API_TOKEN` e `COMMUNITY_ID`.",
     "- WhatsApp/Evolution configurado e grupos liberados em `ALLOWED_GROUPS`.",
     "- OpenRouter configurado com `OPENROUTER_API_KEY`.",

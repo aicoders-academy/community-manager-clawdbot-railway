@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   detectTaskIntent,
+  answerCommunityManagerChat,
   describeCapabilities,
   getDailySummary,
   getModerationAlerts,
@@ -25,6 +26,7 @@ test("detectTaskIntent maps Slack prompts to operational tasks", () => {
 test("describeCapabilities explains supported tasks", () => {
   const capabilities = describeCapabilities();
 
+  assert.match(capabilities, /bater papo/i);
   assert.match(capabilities, /destaques da semana/i);
   assert.match(capabilities, /diretrizes/i);
   assert.match(capabilities, /resumo diario/i);
@@ -33,10 +35,17 @@ test("describeCapabilities explains supported tasks", () => {
 });
 
 test("task functions report missing context instead of inventing", async () => {
-  assert.match(await getWeeklyHighlights({ circlePosts: [], whatsappMessages: [] }), /dados suficientes/i);
-  assert.match(await getTopLikedPostToday({ circlePosts: [] }), /post mais curtido de hoje/i);
-  assert.match(await getModerationAlerts({ whatsappMessages: [] }), /Nenhuma mensagem recente/i);
+  assert.match(await getWeeklyHighlights({ circlePosts: [], whatsappMessages: [] }), /O que faltou/i);
+  assert.match(await getTopLikedPostToday({ circlePosts: [] }), /o post mais curtido de hoje/i);
+  assert.match(await getModerationAlerts({ whatsappMessages: [] }), /nao recebi mensagens recentes/i);
   assert.match(await getDailySummary({ circlePosts: [], whatsappMessages: [] }), /dados suficientes/i);
+});
+
+test("answerCommunityManagerChat answers casual chat without requiring community data", async () => {
+  const answer = await answerCommunityManagerChat({ prompt: "tudo bem?", circlePosts: [], whatsappMessages: [] });
+
+  assert.match(answer, /Tudo bem/i);
+  assert.match(answer, /conversar/i);
 });
 
 test("getTopLikedPostToday returns the most liked Circle post from today", async () => {
