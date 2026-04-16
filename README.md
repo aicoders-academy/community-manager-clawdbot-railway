@@ -116,6 +116,7 @@ Or send it a DM. Messages containing terms like `tarefas`, `resumo`, `posts` or 
 The Slack bot understands these operational requests:
 - `o que voce sabe fazer?`
 - `destaques da semana`
+- `qual foi o post mais curtido de hoje?`
 - `tem alguem quebrando as diretrizes?`
 - `proponha posts com base no que as pessoas estao falando`
 - `resumo diario dos grupos`

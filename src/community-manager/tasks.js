@@ -8,6 +8,17 @@ function hasText(value) {
   return String(value || "").trim().length > 0;
 }
 
+function friendlyMissingData({ task, missing, nextStep }) {
+  return [
+    `Eu ate consigo te ajudar com ${task}, mas agora nao tenho dados suficientes pra fazer isso com seguranca.`,
+    "",
+    missing ? `O que faltou: ${missing}` : "",
+    nextStep ? `Como resolver: ${nextStep}` : "",
+  ]
+    .filter(hasText)
+    .join("\n");
+}
+
 function toDate(value) {
   const date = value ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime()) ? date : null;
@@ -19,8 +30,23 @@ function sinceDate(days) {
   return date;
 }
 
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 function postDate(post) {
   return toDate(post.created_at || post.createdAt || post.published_at || post.updated_at || post.updatedAt);
+}
+
+function postLikes(post) {
+  const fields = [post.likes_count, post.like_count, post.likes, post.reactions_count, post.reaction_count];
+  for (const value of fields) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function postScore(post) {
@@ -56,6 +82,14 @@ function recentCirclePosts(circlePosts, days) {
   });
 }
 
+function todayCirclePosts(circlePosts) {
+  const start = startOfToday();
+  return circlePosts.filter((post) => {
+    const date = postDate(post);
+    return date && date >= start;
+  });
+}
+
 function whatsappLines(whatsappMessages, limit = 80) {
   return whatsappMessages.slice(-limit).filter(hasText).map((message) => `- ${message}`).join("\n");
 }
@@ -85,7 +119,11 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
   const whatsappContext = whatsappLines(whatsappMessages, 60);
 
   if (!circleContext && !whatsappContext) {
-    return "Ainda nao tenho dados suficientes para apontar destaques da semana.";
+    return friendlyMissingData({
+      task: "os destaques da semana",
+      missing: "nao encontrei posts recentes do Circle nem mensagens dos grupos autorizados do WhatsApp.",
+      nextStep: "confira as variaveis do Circle/WhatsApp e garanta que os grupos certos estao em ALLOWED_GROUPS.",
+    });
   }
 
   const result = await callOpenRouter([
@@ -100,13 +138,50 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
     },
   ]);
 
-  return result || "Destaques indisponiveis: OpenRouter nao configurado ou sem contexto suficiente.";
+  return result || friendlyMissingData({
+    task: "os destaques da semana",
+    missing: "o OpenRouter nao respondeu ou OPENROUTER_API_KEY nao esta configurada.",
+    nextStep: "confira OPENROUTER_API_KEY no Railway e tente de novo.",
+  });
+}
+
+// Retorna o post do Circle com mais curtidas no dia atual.
+export async function getTopLikedPostToday({ circlePosts = [] } = {}) {
+  const posts = todayCirclePosts(circlePosts)
+    .map((post) => ({ post, likes: postLikes(post) }))
+    .filter((item) => item.likes !== null)
+    .sort((a, b) => b.likes - a.likes);
+
+  if (posts.length === 0) {
+    return friendlyMissingData({
+      task: "o post mais curtido de hoje",
+      missing:
+        "nao encontrei posts do Circle criados hoje com campos de curtidas/reacoes como likes_count, like_count, likes ou reactions_count.",
+      nextStep: "confira se o Circle esta retornando posts de hoje e se esses campos existem no payload.",
+    });
+  }
+
+  const top = posts[0];
+  const url = postUrl(top.post);
+  return [
+    "*Post mais curtido de hoje*",
+    `Titulo: ${postTitle(top.post)}`,
+    `Curtidas/reacoes: ${top.likes}`,
+    url ? `Link: ${url}` : "Link: nao informado pela API",
+    postBody(top.post) ? `Resumo: ${truncateText(postBody(top.post), 500)}` : "Resumo: sem texto retornado pela API",
+  ].join("\n");
 }
 
 // Gera alerta de moderacao consolidado para mensagens recentes da comunidade.
 export async function getModerationAlerts({ whatsappMessages = [] } = {}) {
   const context = whatsappLines(whatsappMessages, 80);
-  if (!context) return "Nenhuma mensagem recente de grupos autorizados para revisar moderacao.";
+  if (!context) {
+    return friendlyMissingData({
+      task: "alertas de moderacao",
+      missing: "nao recebi mensagens recentes dos grupos autorizados do WhatsApp.",
+      nextStep: "confira EVOLUTION_API_URL, EVOLUTION_API_KEY e ALLOWED_GROUPS; depois mande novas mensagens nos grupos permitidos.",
+    });
+  }
 
   const result = await callOpenRouter([
     {
@@ -120,7 +195,11 @@ export async function getModerationAlerts({ whatsappMessages = [] } = {}) {
     },
   ]);
 
-  return result || "Alertas de moderacao indisponiveis: OpenRouter nao configurado.";
+  return result || friendlyMissingData({
+    task: "alertas de moderacao",
+    missing: "o OpenRouter nao respondeu ou OPENROUTER_API_KEY nao esta configurada.",
+    nextStep: "confira OPENROUTER_API_KEY no Railway e tente de novo.",
+  });
 }
 
 // Gera um resumo diario curto do que aconteceu nos grupos e no Circle.
@@ -152,11 +231,23 @@ export async function getAiNewsPostIdeas({ circlePosts = [], whatsappMessages = 
     },
   ]);
 
-  return result || "Ideias baseadas em noticias indisponiveis: OpenRouter ou RSS indisponivel.";
+  return result || friendlyMissingData({
+    task: "ideias baseadas em noticias de IA",
+    missing: "nao consegui acessar o OpenRouter ou o RSS de noticias.",
+    nextStep: "confira OPENROUTER_API_KEY e AI_NEWS_RSS_URL no Railway.",
+  });
 }
 
 // Responde conversa livre mantendo os limites de evidencias da comunidade.
 export async function answerCommunityManagerChat({ prompt, circlePosts = [], whatsappMessages = [] } = {}) {
+  const normalizedPrompt = normalizeIntentText(prompt);
+  if (/\b(oi|ola|olá|e ai|e aí|bom dia|boa tarde|boa noite|tudo bem|td bem|como vai)\b/.test(normalizedPrompt)) {
+    return [
+      "Tudo bem por aqui. Posso conversar contigo ou executar tarefas da comunidade.",
+      "Por exemplo: me pede os destaques da semana, um resumo diario, alertas de diretrizes ou ideias de posts.",
+    ].join("\n");
+  }
+
   const circleContext = circleLines(circlePosts, 10);
   const whatsappContext = whatsappLines(whatsappMessages, 30);
 
@@ -183,28 +274,49 @@ export async function answerCommunityManagerChat({ prompt, circlePosts = [], wha
     },
   ]);
 
-  return result || "Nao consegui responder agora porque o OpenRouter nao esta configurado ou esta indisponivel.";
+  return result || [
+    "Consigo conversar contigo, mas agora nao consegui acessar o motor de IA.",
+    "O provavel problema e OPENROUTER_API_KEY ausente ou OpenRouter indisponivel.",
+    "Ainda posso responder comandos que nao dependem de IA quando houver dados do Circle/WhatsApp.",
+  ].join("\n");
+}
+
+function normalizeIntentText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\boq\s+ue\b/g, "o que")
+    .replace(/\boq\b/g, "o que")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // Classifica a intencao do pedido feito no Slack.
 export function detectTaskIntent(text) {
-  const prompt = String(text || "").toLowerCase();
-  if (/\b(o que voce faz|o que você faz|o que voce sabe fazer|o que você sabe fazer|ajuda|help|comandos|capacidades|o que pode fazer|o que vc faz|como voce pode ajudar|como você pode ajudar)\b/.test(prompt)) {
+  const prompt = normalizeIntentText(text);
+  if (/\b(o que voce faz|o que voce sabe fazer|ajuda|help|comandos|capacidades|o que pode fazer|o que vc faz|como voce pode ajudar)\b/.test(prompt)) {
     return "capabilities";
+  }
+  if (/\b(post|publicacao|conteudo)\b/.test(prompt) && /\b(mais curtido|mais likes|maior curtida|top curtidas)\b/.test(prompt) && /\b(hoje|dia)\b/.test(prompt)) {
+    return "top_liked_today";
+  }
+  if (/\b(oi|ola|e ai|bom dia|boa tarde|boa noite|tudo bem|td bem|como vai)\b/.test(prompt)) {
+    return "chat";
   }
   if (/\b(destaque|destaques|semana|semanal|mais curtido|mais comentado|top post|topico quente)\b/.test(prompt)) {
     return "weekly_highlights";
   }
-  if (/\b(diretriz|diretrizes|moderacao|moderação|quebrando|violacao|violação|alerta|risco)\b/.test(prompt)) {
+  if (/\b(diretriz|diretrizes|moderacao|quebrando|violacao|alerta|risco)\b/.test(prompt)) {
     return "moderation_alerts";
   }
-  if (/\b(resumo diario|resumo diário|hoje|dia|diario|diário|grupos?)\b/.test(prompt)) {
+  if (/\b(resumo diario|hoje|dia|diario|grupos?)\b/.test(prompt)) {
     return "daily_summary";
   }
-  if (/\b(noticia|notícias|noticias|mundo da ia|novidade|tendencia|tendência)\b/.test(prompt)) {
+  if (/\b(noticia|noticias|mundo da ia|novidade|tendencia)\b/.test(prompt)) {
     return "ai_news_posts";
   }
-  if (/\b(conteudo|conteúdo|postar|posts?|pauta|pautas|ideia|ideias)\b/.test(prompt)) {
+  if (/\b(conteudo|postar|posts?|pauta|pautas|ideia|ideias)\b/.test(prompt)) {
     return "community_post_ideas";
   }
   if (/\b(tarefa|tarefas|digest)\b/.test(prompt)) {
@@ -216,17 +328,17 @@ export function detectTaskIntent(text) {
 // Explica as capacidades do agente e exemplos de comandos.
 export function describeCapabilities() {
   return [
-    "*Eu posso te ajudar como Community Manager da comunidade.*",
+    "Eu sou seu agente de Community Manager. Posso bater papo contigo e tambem executar algumas tarefas quando voce pedir.",
     "",
-    "*Tarefas que consigo executar:*",
+    "O que eu consigo fazer hoje:",
     "- Pegar os destaques da semana: posts, comentarios ou temas com mais sinal de engajamento.",
     "- Avisar possiveis quebras de diretrizes nas mensagens recentes dos grupos autorizados.",
     "- Propor conteudos com base no que as pessoas estao falando.",
     "- Fazer resumo diario do que aconteceu nos grupos e no Circle.",
     "- Propor posts com base em noticias recentes do mundo da IA.",
-    "- Conversar com voce sobre a comunidade, sem inventar dados quando faltar contexto.",
+    "- Conversar com voce de forma normal. Se faltar dado, eu te digo o que nao consegui acessar.",
     "",
-    "*Exemplos de pedidos:*",
+    "Exemplos que voce pode mandar:",
     "- `quais foram os destaques da semana?`",
     "- `tem alguem quebrando as diretrizes?`",
     "- `me faz um resumo diario dos grupos`",
@@ -234,7 +346,7 @@ export function describeCapabilities() {
     "- `sugira posts com noticias de IA`",
     "- `qual foi o post mais curtido do dia?`",
     "",
-    "*O que preciso para responder bem:*",
+    "Pra eu responder bem as tarefas da comunidade, preciso destes acessos:",
     "- Circle configurado com `CIRCLE_API_TOKEN` e `COMMUNITY_ID`.",
     "- WhatsApp/Evolution configurado e grupos liberados em `ALLOWED_GROUPS`.",
     "- OpenRouter configurado com `OPENROUTER_API_KEY`.",
@@ -247,6 +359,8 @@ export async function runCommunityTask({ intent, prompt, circlePosts = [], whats
   switch (intent) {
     case "capabilities":
       return describeCapabilities();
+    case "top_liked_today":
+      return getTopLikedPostToday({ circlePosts });
     case "weekly_highlights":
       return getWeeklyHighlights({ circlePosts, whatsappMessages });
     case "moderation_alerts":

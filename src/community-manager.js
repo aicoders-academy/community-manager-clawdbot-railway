@@ -22,6 +22,7 @@ export {
   getCommunityPostIdeas,
   getDailySummary,
   getModerationAlerts,
+  getTopLikedPostToday,
   getWeeklyHighlights,
   runCommunityTask,
 } from "./community-manager/tasks.js";
