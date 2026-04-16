@@ -36,8 +36,9 @@ Recommended:
 Optional:
 - `OPENCLAW_GATEWAY_TOKEN` — if not set, the wrapper generates one (not ideal). In a template, set it using a generated secret.
 - `OPENROUTER_API_KEY` — enables AI moderation, summaries and post suggestions.
-- `CIRCLE_API_TOKEN` and `COMMUNITY_ID` — enable Circle post collection via `GET /v1/posts`.
+- `CIRCLE_API_TOKEN` — enables Circle post collection. The agent tries to discover all spaces automatically.
 - `CIRCLE_API_BASE_URL` — optional Circle API base URL. Defaults to `https://app.circle.so/api`.
+- `CIRCLE_SPACE_IDS` — optional comma-separated list of Circle space IDs if you want to restrict collection. `CIRCLE_SPACE_ID` still works for one space.
 - `EVOLUTION_API_URL` and `EVOLUTION_API_KEY` — enable WhatsApp send/receive via Evolution API.
 - `WHATSAPP_API_URL` and `WHATSAPP_API_KEY` — accepted aliases for the Evolution API URL/key.
 - `ALLOWED_GROUPS` — comma-separated WhatsApp group IDs allowed for processing. Messages from every other chat are ignored.

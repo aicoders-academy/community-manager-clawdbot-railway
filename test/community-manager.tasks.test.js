@@ -41,6 +41,33 @@ test("task functions report missing context instead of inventing", async () => {
   assert.match(await getDailySummary({ circlePosts: [], whatsappMessages: [] }), /dados suficientes/i);
 });
 
+test("weekly highlights do not require WhatsApp when Circle is configured", async () => {
+  const previousCircleToken = process.env.CIRCLE_API_TOKEN;
+  const previousEvolutionUrl = process.env.EVOLUTION_API_URL;
+  const previousEvolutionKey = process.env.EVOLUTION_API_KEY;
+
+  process.env.CIRCLE_API_TOKEN = "circle-token";
+  delete process.env.COMMUNITY_ID;
+  delete process.env.EVOLUTION_API_URL;
+  delete process.env.EVOLUTION_API_KEY;
+
+  try {
+    const result = await getWeeklyHighlights({ circlePosts: [], whatsappMessages: [] });
+    assert.match(result, /Circle esta configurado/i);
+    assert.match(result, /WhatsApp nao esta configurado; vou trabalhar sem ele/i);
+    assert.doesNotMatch(result, /garanta que os grupos certos/i);
+  } finally {
+    if (previousCircleToken === undefined) delete process.env.CIRCLE_API_TOKEN;
+    else process.env.CIRCLE_API_TOKEN = previousCircleToken;
+
+    if (previousEvolutionUrl === undefined) delete process.env.EVOLUTION_API_URL;
+    else process.env.EVOLUTION_API_URL = previousEvolutionUrl;
+
+    if (previousEvolutionKey === undefined) delete process.env.EVOLUTION_API_KEY;
+    else process.env.EVOLUTION_API_KEY = previousEvolutionKey;
+  }
+});
+
 test("answerCommunityManagerChat answers casual chat without requiring community data", async () => {
   const answer = await answerCommunityManagerChat({ prompt: "tudo bem?", circlePosts: [], whatsappMessages: [] });
 

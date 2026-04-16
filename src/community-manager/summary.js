@@ -1,4 +1,5 @@
 import { callOpenRouter } from "./openrouter.js";
+import { getServiceStatus } from "./config.js";
 import { truncateText } from "./text.js";
 
 function hasText(value) {
@@ -17,6 +18,37 @@ function postToSummaryLine(post) {
     .join("\n");
 }
 
+function missingSummaryContextMessage({ circlePosts = [], whatsappMessages = [] } = {}) {
+  const services = getServiceStatus();
+  const details = [];
+
+  if (services.circle) {
+    details.push(
+      circlePosts.length > 0
+        ? `Circle esta configurado e retornou ${circlePosts.length} post(s), mas sem texto suficiente para resumir.`
+        : "Circle esta configurado, mas nao retornou posts nesta consulta.",
+    );
+  } else {
+    details.push("Circle nao esta configurado.");
+  }
+
+  if (services.whatsapp) {
+    details.push(
+      whatsappMessages.length > 0
+        ? `WhatsApp tem ${whatsappMessages.length} mensagem(ns), mas sem texto suficiente para resumir.`
+        : "WhatsApp esta configurado, mas ainda nao tenho mensagens dos grupos permitidos.",
+    );
+  } else {
+    details.push("WhatsApp nao esta configurado; posso responder apenas com Circle quando houver dados de Circle.");
+  }
+
+  return [
+    "Ainda nao tenho dados suficientes da comunidade para gerar um resumo confiavel.",
+    details.join(" "),
+    "Se uma fonte nao estiver configurada, tudo bem: eu uso a outra quando ela tiver dados.",
+  ].join("\n");
+}
+
 // Consolida os principais topicos do Circle e das mensagens recentes recebidas do WhatsApp.
 export async function summarizeHotTopics({ circlePosts = [], whatsappMessages = [] } = {}) {
   const hasCircleContext = circlePosts.some((post) =>
@@ -25,11 +57,7 @@ export async function summarizeHotTopics({ circlePosts = [], whatsappMessages = 
   const hasWhatsappContext = whatsappMessages.some(hasText);
 
   if (!hasCircleContext && !hasWhatsappContext) {
-    return [
-      "Ainda nao tenho dados suficientes da comunidade para gerar um resumo confiavel.",
-      "Nenhum post/comentario do Circle ou mensagem de grupo autorizado do WhatsApp foi encontrado no contexto atual.",
-      "Proxima acao: confirme CIRCLE_API_TOKEN, COMMUNITY_ID, EVOLUTION_API_URL, EVOLUTION_API_KEY e ALLOWED_GROUPS; depois envie novas mensagens nos grupos permitidos ou rode novamente a coleta do Circle.",
-    ].join("\n");
+    return missingSummaryContextMessage({ circlePosts, whatsappMessages });
   }
 
   const circleContext = circlePosts
