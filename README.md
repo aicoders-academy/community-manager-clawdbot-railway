@@ -9,6 +9,7 @@ This repo packages **OpenClaw** for Railway with a small **/setup** web wizard s
 - Persistent state via **Railway Volume** (so config/credentials/memory survive redeploys)
 - One-click **Export backup** (so users can migrate off Railway later)
 - **Import backup** from `/setup` (advanced recovery)
+- **Community Manager Agent** endpoints for Circle, WhatsApp/Evolution API and OpenRouter
 
 ## How it works (high level)
 
@@ -34,6 +35,30 @@ Recommended:
 
 Optional:
 - `OPENCLAW_GATEWAY_TOKEN` — if not set, the wrapper generates one (not ideal). In a template, set it using a generated secret.
+- `OPENROUTER_API_KEY` — enables AI moderation, summaries and post suggestions.
+- `CIRCLE_API_TOKEN` and `COMMUNITY_ID` — enable Circle post collection via `GET /v1/posts`.
+- `CIRCLE_API_BASE_URL` — optional Circle API base URL. Defaults to `https://app.circle.so/api`.
+- `EVOLUTION_API_URL` and `EVOLUTION_API_KEY` — enable WhatsApp send/receive via Evolution API.
+- `WHATSAPP_API_URL` and `WHATSAPP_API_KEY` — accepted aliases for the Evolution API URL/key.
+- `ALLOWED_GROUPS` — comma-separated WhatsApp group IDs allowed for processing. Messages from every other chat are ignored.
+- `EVOLUTION_INSTANCE` — optional default Evolution instance name for outbound messages.
+- `AI_NEWS_RSS_URL` — optional RSS feed used for AI news suggestions.
+
+## Community Manager Agent
+
+The agent is mounted inside the existing wrapper so Railway deployment keeps using the same Dockerfile and startup command.
+
+Endpoints:
+- `POST /hooks/evolution` receives Evolution API webhooks. It only processes payloads whose group ID is listed in `ALLOWED_GROUPS`.
+- `POST /hooks/evolution/send` sends a message via Evolution API to an allowed group.
+- `GET /community-manager/status` shows enabled integrations and buffered WhatsApp message count.
+- `GET /community-manager/circle/posts` fetches recent Circle posts.
+- `GET /community-manager/summary` summarizes hot topics from Circle and allowed WhatsApp groups.
+- `GET /community-manager/suggest-posts` suggests content ideas from AI news and community pain points.
+
+The `/community-manager/*` endpoints use the same Basic Auth password as `/setup`. The webhook path remains public so Evolution API can call it.
+
+If an API key is missing, that integration logs a warning and returns an empty/disabled result instead of crashing the app. This allows using Circle without WhatsApp, WhatsApp without Circle, or running without OpenRouter while wiring credentials.
 
 Notes:
 - This template pins OpenClaw to a released version by default via Docker build arg `OPENCLAW_GIT_REF` (override if you want `main`).
