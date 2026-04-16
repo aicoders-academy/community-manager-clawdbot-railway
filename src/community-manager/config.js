@@ -17,6 +17,8 @@ export function getServiceStatus() {
         (process.env.EVOLUTION_API_KEY || process.env.WHATSAPP_API_KEY),
     ),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY),
+    slack: Boolean(process.env.SLACK_WEBHOOK_URL),
+    slackEvents: Boolean(process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET),
   };
 }
 

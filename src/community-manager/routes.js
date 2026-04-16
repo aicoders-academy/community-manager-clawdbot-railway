@@ -7,8 +7,54 @@ import {
   sendWhatsAppMessage,
 } from "./evolution.js";
 import { moderateMessage } from "./moderation.js";
+import { callOpenRouter } from "./openrouter.js";
+import {
+  formatSlackTaskDigest,
+  isSlackChannelAllowed,
+  isSlackTaskRequest,
+  normalizeSlackPrompt,
+  postSlackMessage,
+  sendSlackMessage,
+  verifySlackRequest,
+} from "./slack.js";
 import { suggestPosts } from "./suggestions.js";
 import { summarizeHotTopics } from "./summary.js";
+
+// Processa uma mencao ou DM do Slack e publica a resposta no canal/thread original.
+async function processSlackEvent(event, whatsappMessages) {
+  if (!event || event.bot_id || event.subtype) return;
+  if (event.type !== "app_mention" && !(event.type === "message" && event.channel_type === "im")) return;
+  if (!isSlackChannelAllowed(event.channel)) return;
+
+  const prompt = normalizeSlackPrompt(event.text);
+  const circlePosts = await fetchCirclePosts();
+  let text;
+
+  if (isSlackTaskRequest(prompt)) {
+    const summary = await summarizeHotTopics({ circlePosts, whatsappMessages });
+    const suggestions = await suggestPosts({ circlePosts, whatsappMessages });
+    text = formatSlackTaskDigest({ summary, suggestions });
+  } else {
+    text =
+      (await callOpenRouter([
+        {
+          role: "system",
+          content:
+            "Voce e um Community Manager conectado a Circle, WhatsApp e Slack. Responda em portugues, de forma objetiva e acionavel.",
+        },
+        {
+          role: "user",
+          content: prompt || "Como voce pode me ajudar hoje?",
+        },
+      ])) || "Nao consegui responder agora porque o OpenRouter nao esta configurado ou esta indisponivel.";
+  }
+
+  await postSlackMessage({
+    channel: event.channel,
+    threadTs: event.thread_ts || event.ts,
+    text,
+  });
+}
 
 // Registra endpoints do agente sem interferir nas rotas existentes do template Railway.
 export function registerCommunityManagerRoutes(app, options = {}) {
@@ -44,6 +90,27 @@ export function registerCommunityManagerRoutes(app, options = {}) {
     return res.status(result.ok ? 200 : 502).json(result);
   });
 
+  app.post("/hooks/slack/events", (req, res) => {
+    const valid = verifySlackRequest({
+      rawBody: req.rawBody,
+      timestamp: req.headers["x-slack-request-timestamp"],
+      signature: req.headers["x-slack-signature"],
+    });
+    if (!valid) return res.status(401).json({ ok: false, error: "assinatura Slack invalida" });
+
+    const payload = req.body || {};
+    if (payload.type === "url_verification") {
+      return res.json({ challenge: payload.challenge });
+    }
+
+    res.json({ ok: true });
+    if (payload.type === "event_callback") {
+      processSlackEvent(payload.event, whatsappMessages).catch((err) => {
+        console.warn(`[community-manager] Falha ao processar evento Slack: ${String(err)}`);
+      });
+    }
+  });
+
   app.get("/community-manager/status", adminAuth, (_req, res) => {
     res.json({
       ok: true,
@@ -69,5 +136,18 @@ export function registerCommunityManagerRoutes(app, options = {}) {
     const circlePosts = await fetchCirclePosts();
     const suggestions = await suggestPosts({ circlePosts, whatsappMessages });
     res.json({ ok: true, suggestions });
+  });
+
+  app.post("/community-manager/slack/tasks", adminAuth, async (_req, res) => {
+    const circlePosts = await fetchCirclePosts();
+    const summary = await summarizeHotTopics({ circlePosts, whatsappMessages });
+    const suggestions = await suggestPosts({ circlePosts, whatsappMessages });
+    const message = formatSlackTaskDigest({ summary, suggestions });
+    const result = await sendSlackMessage(message);
+
+    return res.status(result.ok ? 200 : 502).json({
+      ...result,
+      messagePreview: message,
+    });
   });
 }

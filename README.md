@@ -43,6 +43,9 @@ Optional:
 - `ALLOWED_GROUPS` — comma-separated WhatsApp group IDs allowed for processing. Messages from every other chat are ignored.
 - `EVOLUTION_INSTANCE` — optional default Evolution instance name for outbound messages.
 - `AI_NEWS_RSS_URL` — optional RSS feed used for AI news suggestions.
+- `SLACK_WEBHOOK_URL` — optional Slack Incoming Webhook used to send task digests.
+- `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` — enable Slack mentions/DMs via Events API.
+- `SLACK_ALLOWED_CHANNELS` — optional comma-separated Slack channel IDs allowed to talk to the bot.
 
 ## Community Manager Agent
 
@@ -55,10 +58,55 @@ Endpoints:
 - `GET /community-manager/circle/posts` fetches recent Circle posts.
 - `GET /community-manager/summary` summarizes hot topics from Circle and allowed WhatsApp groups.
 - `GET /community-manager/suggest-posts` suggests content ideas from AI news and community pain points.
+- `POST /community-manager/slack/tasks` sends a task digest to Slack using `SLACK_WEBHOOK_URL`.
+- `POST /hooks/slack/events` receives Slack Events API callbacks for `app_mention`, `message.im`, and `url_verification`.
 
 The `/community-manager/*` endpoints use the same Basic Auth password as `/setup`. The webhook path remains public so Evolution API can call it.
 
 If an API key is missing, that integration logs a warning and returns an empty/disabled result instead of crashing the app. This allows using Circle without WhatsApp, WhatsApp without Circle, or running without OpenRouter while wiring credentials.
+
+### Slack mentions and DMs
+
+To talk to the bot in Slack:
+
+1) In the Slack app, enable **Event Subscriptions**.
+2) Set the Request URL to:
+
+```text
+https://<your-railway-domain>/hooks/slack/events
+```
+
+3) Subscribe to bot events:
+
+```text
+app_mention
+message.im
+```
+
+4) Add OAuth scopes:
+
+```text
+app_mentions:read
+chat:write
+im:history
+```
+
+5) Install or reinstall the Slack app into the workspace.
+6) Set Railway variables:
+
+```text
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_SIGNING_SECRET=...
+SLACK_ALLOWED_CHANNELS=C123456,C789012
+```
+
+Then mention the bot in an allowed channel:
+
+```text
+@Community Manager me mande as tarefas de hoje
+```
+
+Or send it a DM. Messages containing terms like `tarefas`, `resumo`, `posts` or `pautas` generate the task digest. Other messages are answered conversationally through OpenRouter.
 
 Notes:
 - This template pins OpenClaw to a released version by default via Docker build arg `OPENCLAW_GIT_REF` (override if you want `main`).
