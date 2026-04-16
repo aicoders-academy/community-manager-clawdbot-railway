@@ -299,7 +299,12 @@ function requireSetupAuth(req, res, next) {
 
 const app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({
+  limit: "1mb",
+  verify: (req, _res, buf, encoding) => {
+    req.rawBody = buf.toString(encoding || "utf8");
+  },
+}));
 registerCommunityManagerRoutes(app, { adminAuth: requireSetupAuth });
 
 // Minimal health endpoint for Railway.
