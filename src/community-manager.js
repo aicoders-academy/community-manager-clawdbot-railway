@@ -9,6 +9,7 @@ export {
   isSlackTaskRequest,
   normalizeSlackPrompt,
   postSlackMessage,
+  slackReplyTarget,
   verifySlackRequest,
 } from "./community-manager/slack.js";
 export { suggestPosts } from "./community-manager/suggestions.js";

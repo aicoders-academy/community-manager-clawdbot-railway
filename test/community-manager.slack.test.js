@@ -7,6 +7,7 @@ import {
   isSlackChannelAllowed,
   isSlackTaskRequest,
   normalizeSlackPrompt,
+  slackReplyTarget,
   verifySlackRequest,
 } from "../src/community-manager.js";
 
@@ -53,6 +54,8 @@ test("Slack helpers normalize prompts and channel allowlist", () => {
     assert.equal(isSlackTaskRequest("me mande as tarefas"), true);
     assert.equal(isSlackChannelAllowed("C123"), true);
     assert.equal(isSlackChannelAllowed("C789"), false);
+    assert.deepEqual(slackReplyTarget({ channel: "C123" }), { channel: "C123", textMode: "channel" });
+    assert.deepEqual(slackReplyTarget({ channel: "D123", channel_type: "im" }), { channel: "D123", textMode: "dm" });
   } finally {
     if (previousAllowedChannels === undefined) {
       delete process.env.SLACK_ALLOWED_CHANNELS;

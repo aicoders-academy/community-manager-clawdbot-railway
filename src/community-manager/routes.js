@@ -15,6 +15,7 @@ import {
   normalizeSlackPrompt,
   postSlackMessage,
   sendSlackMessage,
+  slackReplyTarget,
   verifySlackRequest,
 } from "./slack.js";
 import { suggestPosts } from "./suggestions.js";
@@ -55,17 +56,30 @@ async function processSlackEvent(event, whatsappMessages) {
       ])) || "Nao consegui responder agora porque o OpenRouter nao esta configurado ou esta indisponivel.";
   }
 
+  const replyTarget = slackReplyTarget(event);
   await postSlackMessage({
-    channel: event.channel,
-    threadTs: event.thread_ts || event.ts,
+    channel: replyTarget.channel,
     text,
   });
+}
+
+function rememberSlackEvent(eventIds, eventId) {
+  if (!eventId) return true;
+  if (eventIds.has(eventId)) return false;
+
+  eventIds.add(eventId);
+  if (eventIds.size > 500) {
+    eventIds.delete(eventIds.values().next().value);
+  }
+
+  return true;
 }
 
 // Registra endpoints do agente sem interferir nas rotas existentes do template Railway.
 export function registerCommunityManagerRoutes(app, options = {}) {
   const adminAuth = options.adminAuth || ((_req, _res, next) => next());
   const whatsappMessages = [];
+  const processedSlackEvents = new Set();
 
   app.post("/hooks/evolution", async (req, res) => {
     const payload = req.body || {};
@@ -111,6 +125,7 @@ export function registerCommunityManagerRoutes(app, options = {}) {
 
     res.json({ ok: true });
     if (payload.type === "event_callback") {
+      if (!rememberSlackEvent(processedSlackEvents, payload.event_id || payload.event?.client_msg_id)) return;
       processSlackEvent(payload.event, whatsappMessages).catch((err) => {
         console.warn(`[community-manager] Falha ao processar evento Slack: ${String(err)}`);
       });
