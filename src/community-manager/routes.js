@@ -7,11 +7,9 @@ import {
   sendWhatsAppMessage,
 } from "./evolution.js";
 import { moderateMessage } from "./moderation.js";
-import { callOpenRouter } from "./openrouter.js";
 import {
   formatSlackTaskDigest,
   isSlackChannelAllowed,
-  isSlackTaskRequest,
   normalizeSlackPrompt,
   postSlackMessage,
   sendSlackMessage,
@@ -20,6 +18,15 @@ import {
 } from "./slack.js";
 import { suggestPosts } from "./suggestions.js";
 import { summarizeHotTopics } from "./summary.js";
+import {
+  detectTaskIntent,
+  getAiNewsPostIdeas,
+  getCommunityPostIdeas,
+  getDailySummary,
+  getModerationAlerts,
+  getWeeklyHighlights,
+  runCommunityTask,
+} from "./tasks.js";
 
 // Processa uma mencao ou DM do Slack e publica a resposta no canal/thread original.
 async function processSlackEvent(event, whatsappMessages) {
@@ -29,32 +36,8 @@ async function processSlackEvent(event, whatsappMessages) {
 
   const prompt = normalizeSlackPrompt(event.text);
   const circlePosts = await fetchCirclePosts();
-  let text;
-
-  if (isSlackTaskRequest(prompt)) {
-    const summary = await summarizeHotTopics({ circlePosts, whatsappMessages });
-    const suggestions = await suggestPosts({ circlePosts, whatsappMessages });
-    text = formatSlackTaskDigest({ summary, suggestions });
-  } else {
-    text =
-      (await callOpenRouter([
-        {
-          role: "system",
-          content:
-            [
-              "Voce e um Community Manager conectado a Circle, WhatsApp e Slack.",
-              "Responda em portugues, de forma objetiva e acionavel.",
-              "Nao invente dados sobre a comunidade.",
-              "Quando o usuario pedir tarefas, resumo, posts ou pautas, use apenas dados coletados do Circle e dos grupos autorizados do WhatsApp.",
-              "Se nao houver dados suficientes, diga isso claramente e peca a integracao ou coleta necessaria.",
-            ].join(" "),
-        },
-        {
-          role: "user",
-          content: prompt || "Como voce pode me ajudar hoje?",
-        },
-      ])) || "Nao consegui responder agora porque o OpenRouter nao esta configurado ou esta indisponivel.";
-  }
+  const intent = detectTaskIntent(prompt);
+  const text = await runCommunityTask({ intent, prompt, circlePosts, whatsappMessages });
 
   const replyTarget = slackReplyTarget(event);
   await postSlackMessage({
@@ -157,6 +140,35 @@ export function registerCommunityManagerRoutes(app, options = {}) {
     const circlePosts = await fetchCirclePosts();
     const suggestions = await suggestPosts({ circlePosts, whatsappMessages });
     res.json({ ok: true, suggestions });
+  });
+
+  app.get("/community-manager/highlights/weekly", adminAuth, async (_req, res) => {
+    const circlePosts = await fetchCirclePosts();
+    const highlights = await getWeeklyHighlights({ circlePosts, whatsappMessages });
+    res.json({ ok: true, highlights });
+  });
+
+  app.get("/community-manager/moderation/alerts", adminAuth, async (_req, res) => {
+    const alerts = await getModerationAlerts({ whatsappMessages });
+    res.json({ ok: true, alerts });
+  });
+
+  app.get("/community-manager/summary/daily", adminAuth, async (_req, res) => {
+    const circlePosts = await fetchCirclePosts();
+    const summary = await getDailySummary({ circlePosts, whatsappMessages });
+    res.json({ ok: true, summary });
+  });
+
+  app.get("/community-manager/content/community", adminAuth, async (_req, res) => {
+    const circlePosts = await fetchCirclePosts();
+    const ideas = await getCommunityPostIdeas({ circlePosts, whatsappMessages });
+    res.json({ ok: true, ideas });
+  });
+
+  app.get("/community-manager/content/ai-news", adminAuth, async (_req, res) => {
+    const circlePosts = await fetchCirclePosts();
+    const ideas = await getAiNewsPostIdeas({ circlePosts, whatsappMessages });
+    res.json({ ok: true, ideas });
   });
 
   app.post("/community-manager/slack/tasks", adminAuth, async (_req, res) => {

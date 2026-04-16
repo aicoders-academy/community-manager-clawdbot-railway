@@ -60,6 +60,11 @@ Endpoints:
 - `GET /community-manager/suggest-posts` suggests content ideas from AI news and community pain points.
 - `POST /community-manager/slack/tasks` sends a task digest to Slack using `SLACK_WEBHOOK_URL`.
 - `POST /hooks/slack/events` receives Slack Events API callbacks for `app_mention`, `message.im`, and `url_verification`.
+- `GET /community-manager/highlights/weekly` returns weekly highlights from Circle posts and WhatsApp conversations.
+- `GET /community-manager/moderation/alerts` reviews recent allowed WhatsApp messages for guideline risks.
+- `GET /community-manager/summary/daily` returns a daily operational summary.
+- `GET /community-manager/content/community` proposes posts based on community conversations.
+- `GET /community-manager/content/ai-news` proposes posts based on recent AI news.
 
 The `/community-manager/*` endpoints use the same Basic Auth password as `/setup`. The webhook path remains public so Evolution API can call it.
 
@@ -107,6 +112,14 @@ Then mention the bot in an allowed channel:
 ```
 
 Or send it a DM. Messages containing terms like `tarefas`, `resumo`, `posts` or `pautas` generate the task digest. Other messages are answered conversationally through OpenRouter.
+
+The Slack bot understands these operational requests:
+- `destaques da semana`
+- `tem alguem quebrando as diretrizes?`
+- `proponha posts com base no que as pessoas estao falando`
+- `resumo diario dos grupos`
+- `proponha posts com noticias de IA`
+- free-form conversation, with no fabricated community facts
 
 Notes:
 - This template pins OpenClaw to a released version by default via Docker build arg `OPENCLAW_GIT_REF` (override if you want `main`).

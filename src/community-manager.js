@@ -15,6 +15,16 @@ export {
 export { suggestPosts } from "./community-manager/suggestions.js";
 export { summarizeHotTopics } from "./community-manager/summary.js";
 export {
+  answerCommunityManagerChat,
+  detectTaskIntent,
+  getAiNewsPostIdeas,
+  getCommunityPostIdeas,
+  getDailySummary,
+  getModerationAlerts,
+  getWeeklyHighlights,
+  runCommunityTask,
+} from "./community-manager/tasks.js";
+export {
   extractGroupId,
   extractInstance,
   extractMessageText,
