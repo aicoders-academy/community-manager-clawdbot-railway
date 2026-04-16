@@ -114,6 +114,7 @@ Then mention the bot in an allowed channel:
 Or send it a DM. Messages containing terms like `tarefas`, `resumo`, `posts` or `pautas` generate the task digest. Other messages are answered conversationally through OpenRouter.
 
 The Slack bot understands these operational requests:
+- `o que voce sabe fazer?`
 - `destaques da semana`
 - `tem alguem quebrando as diretrizes?`
 - `proponha posts com base no que as pessoas estao falando`

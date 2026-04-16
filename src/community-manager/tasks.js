@@ -189,6 +189,9 @@ export async function answerCommunityManagerChat({ prompt, circlePosts = [], wha
 // Classifica a intencao do pedido feito no Slack.
 export function detectTaskIntent(text) {
   const prompt = String(text || "").toLowerCase();
+  if (/\b(o que voce faz|o que você faz|o que voce sabe fazer|o que você sabe fazer|ajuda|help|comandos|capacidades|o que pode fazer|o que vc faz|como voce pode ajudar|como você pode ajudar)\b/.test(prompt)) {
+    return "capabilities";
+  }
   if (/\b(destaque|destaques|semana|semanal|mais curtido|mais comentado|top post|topico quente)\b/.test(prompt)) {
     return "weekly_highlights";
   }
@@ -210,9 +213,40 @@ export function detectTaskIntent(text) {
   return "chat";
 }
 
+// Explica as capacidades do agente e exemplos de comandos.
+export function describeCapabilities() {
+  return [
+    "*Eu posso te ajudar como Community Manager da comunidade.*",
+    "",
+    "*Tarefas que consigo executar:*",
+    "- Pegar os destaques da semana: posts, comentarios ou temas com mais sinal de engajamento.",
+    "- Avisar possiveis quebras de diretrizes nas mensagens recentes dos grupos autorizados.",
+    "- Propor conteudos com base no que as pessoas estao falando.",
+    "- Fazer resumo diario do que aconteceu nos grupos e no Circle.",
+    "- Propor posts com base em noticias recentes do mundo da IA.",
+    "- Conversar com voce sobre a comunidade, sem inventar dados quando faltar contexto.",
+    "",
+    "*Exemplos de pedidos:*",
+    "- `quais foram os destaques da semana?`",
+    "- `tem alguem quebrando as diretrizes?`",
+    "- `me faz um resumo diario dos grupos`",
+    "- `proponha posts com base no que as pessoas estao falando`",
+    "- `sugira posts com noticias de IA`",
+    "- `qual foi o post mais curtido do dia?`",
+    "",
+    "*O que preciso para responder bem:*",
+    "- Circle configurado com `CIRCLE_API_TOKEN` e `COMMUNITY_ID`.",
+    "- WhatsApp/Evolution configurado e grupos liberados em `ALLOWED_GROUPS`.",
+    "- OpenRouter configurado com `OPENROUTER_API_KEY`.",
+    "- Slack configurado com `SLACK_BOT_TOKEN` e `SLACK_SIGNING_SECRET`.",
+  ].join("\n");
+}
+
 // Executa a tarefa solicitada pelo operador.
 export async function runCommunityTask({ intent, prompt, circlePosts = [], whatsappMessages = [] } = {}) {
   switch (intent) {
+    case "capabilities":
+      return describeCapabilities();
     case "weekly_highlights":
       return getWeeklyHighlights({ circlePosts, whatsappMessages });
     case "moderation_alerts":

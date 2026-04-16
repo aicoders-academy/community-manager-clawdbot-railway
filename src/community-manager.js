@@ -17,6 +17,7 @@ export { summarizeHotTopics } from "./community-manager/summary.js";
 export {
   answerCommunityManagerChat,
   detectTaskIntent,
+  describeCapabilities,
   getAiNewsPostIdeas,
   getCommunityPostIdeas,
   getDailySummary,
