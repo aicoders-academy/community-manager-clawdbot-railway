@@ -19,8 +19,23 @@ function sinceDate(days) {
   return date;
 }
 
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 function postDate(post) {
   return toDate(post.created_at || post.createdAt || post.published_at || post.updated_at || post.updatedAt);
+}
+
+function postLikes(post) {
+  const fields = [post.likes_count, post.like_count, post.likes, post.reactions_count, post.reaction_count];
+  for (const value of fields) {
+    const parsed = Number.parseInt(String(value ?? ""), 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function postScore(post) {
@@ -53,6 +68,14 @@ function recentCirclePosts(circlePosts, days) {
   return circlePosts.filter((post) => {
     const date = postDate(post);
     return !date || date >= cutoff;
+  });
+}
+
+function todayCirclePosts(circlePosts) {
+  const start = startOfToday();
+  return circlePosts.filter((post) => {
+    const date = postDate(post);
+    return date && date >= start;
   });
 }
 
@@ -101,6 +124,32 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
   ]);
 
   return result || "Destaques indisponiveis: OpenRouter nao configurado ou sem contexto suficiente.";
+}
+
+// Retorna o post do Circle com mais curtidas no dia atual.
+export async function getTopLikedPostToday({ circlePosts = [] } = {}) {
+  const posts = todayCirclePosts(circlePosts)
+    .map((post) => ({ post, likes: postLikes(post) }))
+    .filter((item) => item.likes !== null)
+    .sort((a, b) => b.likes - a.likes);
+
+  if (posts.length === 0) {
+    return [
+      "Ainda nao consigo apontar o post mais curtido de hoje.",
+      "Nao encontrei posts do Circle criados hoje com campo de curtidas/reacoes no payload.",
+      "Verifique se a integracao Circle esta retornando `likes_count`, `like_count`, `likes` ou `reactions_count`.",
+    ].join("\n");
+  }
+
+  const top = posts[0];
+  const url = postUrl(top.post);
+  return [
+    "*Post mais curtido de hoje*",
+    `Titulo: ${postTitle(top.post)}`,
+    `Curtidas/reacoes: ${top.likes}`,
+    url ? `Link: ${url}` : "Link: nao informado pela API",
+    postBody(top.post) ? `Resumo: ${truncateText(postBody(top.post), 500)}` : "Resumo: sem texto retornado pela API",
+  ].join("\n");
 }
 
 // Gera alerta de moderacao consolidado para mensagens recentes da comunidade.
@@ -186,25 +235,39 @@ export async function answerCommunityManagerChat({ prompt, circlePosts = [], wha
   return result || "Nao consegui responder agora porque o OpenRouter nao esta configurado ou esta indisponivel.";
 }
 
+function normalizeIntentText(text) {
+  return String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\boq\s+ue\b/g, "o que")
+    .replace(/\boq\b/g, "o que")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Classifica a intencao do pedido feito no Slack.
 export function detectTaskIntent(text) {
-  const prompt = String(text || "").toLowerCase();
-  if (/\b(o que voce faz|o que você faz|o que voce sabe fazer|o que você sabe fazer|ajuda|help|comandos|capacidades|o que pode fazer|o que vc faz|como voce pode ajudar|como você pode ajudar)\b/.test(prompt)) {
+  const prompt = normalizeIntentText(text);
+  if (/\b(o que voce faz|o que voce sabe fazer|ajuda|help|comandos|capacidades|o que pode fazer|o que vc faz|como voce pode ajudar)\b/.test(prompt)) {
     return "capabilities";
+  }
+  if (/\b(post|publicacao|conteudo)\b/.test(prompt) && /\b(mais curtido|mais likes|maior curtida|top curtidas)\b/.test(prompt) && /\b(hoje|dia)\b/.test(prompt)) {
+    return "top_liked_today";
   }
   if (/\b(destaque|destaques|semana|semanal|mais curtido|mais comentado|top post|topico quente)\b/.test(prompt)) {
     return "weekly_highlights";
   }
-  if (/\b(diretriz|diretrizes|moderacao|moderação|quebrando|violacao|violação|alerta|risco)\b/.test(prompt)) {
+  if (/\b(diretriz|diretrizes|moderacao|quebrando|violacao|alerta|risco)\b/.test(prompt)) {
     return "moderation_alerts";
   }
-  if (/\b(resumo diario|resumo diário|hoje|dia|diario|diário|grupos?)\b/.test(prompt)) {
+  if (/\b(resumo diario|hoje|dia|diario|grupos?)\b/.test(prompt)) {
     return "daily_summary";
   }
-  if (/\b(noticia|notícias|noticias|mundo da ia|novidade|tendencia|tendência)\b/.test(prompt)) {
+  if (/\b(noticia|noticias|mundo da ia|novidade|tendencia)\b/.test(prompt)) {
     return "ai_news_posts";
   }
-  if (/\b(conteudo|conteúdo|postar|posts?|pauta|pautas|ideia|ideias)\b/.test(prompt)) {
+  if (/\b(conteudo|postar|posts?|pauta|pautas|ideia|ideias)\b/.test(prompt)) {
     return "community_post_ideas";
   }
   if (/\b(tarefa|tarefas|digest)\b/.test(prompt)) {
@@ -247,6 +310,8 @@ export async function runCommunityTask({ intent, prompt, circlePosts = [], whats
   switch (intent) {
     case "capabilities":
       return describeCapabilities();
+    case "top_liked_today":
+      return getTopLikedPostToday({ circlePosts });
     case "weekly_highlights":
       return getWeeklyHighlights({ circlePosts, whatsappMessages });
     case "moderation_alerts":
