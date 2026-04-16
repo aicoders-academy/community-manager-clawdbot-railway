@@ -3,8 +3,23 @@ import { callOpenRouter } from "./openrouter.js";
 import { summarizeHotTopics } from "./summary.js";
 import { truncateText } from "./text.js";
 
+function hasCommunityContext({ circlePosts = [], whatsappMessages = [] } = {}) {
+  return (
+    circlePosts.some((post) =>
+      String(post.name || post.title || post.body || post.content || post.description || "").trim(),
+    ) || whatsappMessages.some((message) => String(message || "").trim())
+  );
+}
+
 // Cruza noticias de IA com dores da comunidade para sugerir pautas de posts.
 export async function suggestPosts({ circlePosts = [], whatsappMessages = [] } = {}) {
+  if (!hasCommunityContext({ circlePosts, whatsappMessages })) {
+    return [
+      "Ainda nao tenho dores reais da comunidade suficientes para sugerir posts com qualidade.",
+      "Para evitar sugestoes genericas, aguarde dados do Circle ou mensagens de grupos autorizados do WhatsApp.",
+    ].join("\n");
+  }
+
   const news = await fetchAiNews();
   const pains = await summarizeHotTopics({ circlePosts, whatsappMessages });
   const newsText = news.map((item) => `- ${item.title} (${item.link})`).join("\n");
@@ -13,11 +28,21 @@ export async function suggestPosts({ circlePosts = [], whatsappMessages = [] } =
     {
       role: "system",
       content:
-        "Voce sugere posts para uma comunidade de IA. Gere 5 ideias com titulo, gancho e por que atende uma dor da comunidade.",
+        [
+          "Voce sugere posts para uma comunidade de IA com base em dores reais da comunidade.",
+          "Use as dores fornecidas como fonte primaria.",
+          "Use noticias apenas quando elas conectarem claramente com uma dor real.",
+          "Nao invente dores, estatisticas, tendencias ou funcionalidades.",
+          "Se uma ideia nao tiver evidencia, nao inclua.",
+          "Gere no maximo 5 ideias em portugues, cada uma com: titulo, gancho, dor atendida, evidencia usada e proximo passo.",
+        ].join(" "),
     },
     {
       role: "user",
-      content: truncateText(`Dores da comunidade:\n${pains}\n\nNoticias recentes:\n${newsText}`, 5000),
+      content: truncateText(
+        `Dores reais da comunidade:\n${pains}\n\nNoticias recentes opcionais:\n${newsText || "Sem noticias disponiveis."}`,
+        5000,
+      ),
     },
   ]);
 
