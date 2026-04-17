@@ -251,3 +251,43 @@ test("fetchCirclePosts falls back to Admin v1 when Admin v2 posts returns 404", 
     restoreEnv(previousEnv);
   }
 });
+
+test("fetchCirclePosts reuses Admin v1 after Admin v2 posts has returned 404", async () => {
+  const previousEnv = {
+    CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
+    CIRCLE_SPACE_IDS: process.env.CIRCLE_SPACE_IDS,
+  };
+  const previousFetch = globalThis.fetch;
+  const requestedPaths = [];
+
+  process.env.CIRCLE_API_TOKEN = "circle-token";
+  process.env.CIRCLE_SPACE_IDS = "333,444";
+
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    requestedPaths.push(parsed.pathname);
+
+    if (parsed.pathname === "/api/admin/v2/comments/posts") {
+      return { ok: false, status: 404 };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { records: [{ title: `Post ${parsed.searchParams.get("space_id")}`, created_at: "2026-04-16T10:00:00.000Z" }] };
+      },
+    };
+  };
+
+  try {
+    await fetchCirclePosts(10);
+    assert.deepEqual(requestedPaths, [
+      "/api/headless/admin/v1/posts",
+      "/api/headless/admin/v1/posts",
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreEnv(previousEnv);
+  }
+});
