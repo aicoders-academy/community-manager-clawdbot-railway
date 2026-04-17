@@ -63,6 +63,46 @@ test("fetchCirclePosts uses Circle Admin v2 posts endpoint when CIRCLE_SPACE_ID 
   }
 });
 
+test("fetchCirclePosts strips wrapping quotes from Circle env vars", async () => {
+  const previousEnv = {
+    CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
+    CIRCLE_SPACE_IDS: process.env.CIRCLE_SPACE_IDS,
+    CIRCLE_SPACE_ID: process.env.CIRCLE_SPACE_ID,
+    CIRCLE_API_BASE_URL: process.env.CIRCLE_API_BASE_URL,
+  };
+  const previousFetch = globalThis.fetch;
+  let requestedUrl;
+  let requestedHeaders;
+
+  process.env.CIRCLE_API_TOKEN = "\"circle-token\"";
+  delete process.env.CIRCLE_SPACE_IDS;
+  process.env.CIRCLE_SPACE_ID = "\"999\"";
+  process.env.CIRCLE_API_BASE_URL = "\"https://app.circle.so/api\"";
+
+  globalThis.fetch = async (url, options) => {
+    requestedUrl = String(url);
+    requestedHeaders = options.headers;
+    return {
+      ok: true,
+      async json() {
+        return { records: [] };
+      },
+    };
+  };
+
+  try {
+    await fetchCirclePosts(20);
+    const url = new URL(requestedUrl);
+
+    assert.equal(url.pathname, "/api/admin/v2/posts");
+    assert.equal(url.searchParams.get("space_id"), "999");
+    assert.equal(requestedHeaders.Authorization, "Bearer circle-token");
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreEnv(previousEnv);
+  }
+});
+
 test("fetchCirclePosts uses Circle Admin v2 posts endpoint without CIRCLE_SPACE_ID", async () => {
   const previousEnv = {
     CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
@@ -146,7 +186,7 @@ test("fetchCirclePosts collects posts from multiple Circle spaces", async () => 
   }
 });
 
-test("fetchCirclePosts discovers all Circle spaces when no space IDs are configured", async () => {
+test("fetchCirclePosts uses unscoped Circle posts endpoint when no space IDs are configured", async () => {
   const previousEnv = {
     CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
     COMMUNITY_ID: process.env.COMMUNITY_ID,
@@ -155,7 +195,7 @@ test("fetchCirclePosts discovers all Circle spaces when no space IDs are configu
     SPACE_ID: process.env.SPACE_ID,
   };
   const previousFetch = globalThis.fetch;
-  const requestedUrls = [];
+  let requestedUrl;
 
   process.env.CIRCLE_API_TOKEN = "circle-token";
   delete process.env.COMMUNITY_ID;
@@ -165,25 +205,16 @@ test("fetchCirclePosts discovers all Circle spaces when no space IDs are configu
 
   globalThis.fetch = async (url) => {
     const parsed = new URL(String(url));
-    requestedUrls.push(String(url));
-
-    if (parsed.pathname === "/api/admin/v2/spaces") {
-      return {
-        ok: true,
-        async json() {
-          return { records: [{ id: 111 }, { id: 222 }] };
-        },
-      };
-    }
+    requestedUrl = String(url);
 
     return {
       ok: true,
       async json() {
-        const spaceId = parsed.searchParams.get("space_id");
         return {
           records: [
             {
-              name: `Post ${spaceId}`,
+              name: "Post sem filtro",
+              space_id: 111,
               published_at: "2026-04-16T10:00:00.000Z",
               likes_count: 1,
             },
@@ -195,8 +226,10 @@ test("fetchCirclePosts discovers all Circle spaces when no space IDs are configu
 
   try {
     const posts = await fetchCirclePosts(10);
-    assert.equal(new URL(requestedUrls[0]).pathname, "/api/admin/v2/spaces");
-    assert.deepEqual(posts.map((post) => post.source_space_id).sort(), ["111", "222"]);
+    const url = new URL(requestedUrl);
+    assert.equal(url.pathname, "/api/admin/v2/posts");
+    assert.equal(url.searchParams.get("space_id"), null);
+    assert.deepEqual(posts.map((post) => post.source_space_id), [111]);
   } finally {
     globalThis.fetch = previousFetch;
     restoreEnv(previousEnv);
@@ -252,7 +285,7 @@ test("fetchCirclePosts falls back to comments posts endpoint when Admin v2 posts
   }
 });
 
-test("fetchCirclePosts reuses comments posts endpoint after Admin v2 posts has returned 404", async () => {
+test("fetchCirclePosts keeps Circle fallback scoped to each space request", async () => {
   const previousEnv = {
     CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
     CIRCLE_SPACE_IDS: process.env.CIRCLE_SPACE_IDS,
@@ -265,9 +298,10 @@ test("fetchCirclePosts reuses comments posts endpoint after Admin v2 posts has r
 
   globalThis.fetch = async (url) => {
     const parsed = new URL(String(url));
-    requestedPaths.push(parsed.pathname);
+    const spaceId = parsed.searchParams.get("space_id");
+    requestedPaths.push(`${parsed.pathname}:${spaceId}`);
 
-    if (parsed.pathname === "/api/admin/v2/posts") {
+    if (parsed.pathname === "/api/admin/v2/posts" && spaceId === "333") {
       return { ok: false, status: 404 };
     }
 
@@ -281,11 +315,13 @@ test("fetchCirclePosts reuses comments posts endpoint after Admin v2 posts has r
   };
 
   try {
-    await fetchCirclePosts(10);
+    const posts = await fetchCirclePosts(10);
     assert.deepEqual(requestedPaths, [
-      "/api/admin/v2/comments/posts",
-      "/api/admin/v2/comments/posts",
+      "/api/admin/v2/posts:333",
+      "/api/admin/v2/comments/posts:333",
+      "/api/admin/v2/posts:444",
     ]);
+    assert.deepEqual(posts.map((post) => post.title).sort(), ["Post 333", "Post 444"]);
   } finally {
     globalThis.fetch = previousFetch;
     restoreEnv(previousEnv);
