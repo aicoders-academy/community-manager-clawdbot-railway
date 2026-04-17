@@ -8,6 +8,7 @@ import {
   isSlackChannelAllowed,
   isSlackTaskRequest,
   normalizeSlackPrompt,
+  postSlackMessage,
   slackReplyTarget,
   verifySlackRequest,
 } from "../src/community-manager.js";
@@ -73,5 +74,45 @@ test("Slack helpers normalize prompts and channel allowlist", () => {
     } else {
       process.env.SLACK_ALLOWED_CHANNELS = previousAllowedChannels;
     }
+  }
+});
+
+test("postSlackMessage disables unfurls and keeps message under Slack limit", async () => {
+  const previousToken = process.env.SLACK_BOT_TOKEN;
+  const previousLimit = process.env.SLACK_MESSAGE_LIMIT;
+  const previousFetch = globalThis.fetch;
+  let requestBody;
+
+  process.env.SLACK_BOT_TOKEN = "xoxb-test";
+  process.env.SLACK_MESSAGE_LIMIT = "80";
+
+  globalThis.fetch = async (_url, options) => {
+    requestBody = JSON.parse(options.body);
+    return {
+      ok: true,
+      async json() {
+        return { ok: true };
+      },
+    };
+  };
+
+  try {
+    const result = await postSlackMessage({
+      channel: "C123",
+      text: "x".repeat(200),
+      threadTs: "123.456",
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(requestBody.unfurl_links, false);
+    assert.equal(requestBody.unfurl_media, false);
+    assert.equal(requestBody.thread_ts, "123.456");
+    assert.ok(requestBody.text.length <= 83);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.SLACK_BOT_TOKEN;
+    else process.env.SLACK_BOT_TOKEN = previousToken;
+    if (previousLimit === undefined) delete process.env.SLACK_MESSAGE_LIMIT;
+    else process.env.SLACK_MESSAGE_LIMIT = previousLimit;
   }
 });

@@ -1,0 +1,178 @@
+[
+  {
+    "id": "openai-news",
+    "name": "OpenAI News",
+    "type": "rss",
+    "url": "https://openai.com/news/rss.xml",
+    "priority": 100,
+    "tags": ["openai", "models", "api", "codex"]
+  },
+  {
+    "id": "anthropic-news",
+    "name": "Anthropic News",
+    "type": "anthropic-html",
+    "url": "https://www.anthropic.com/news",
+    "priority": 98,
+    "tags": ["anthropic", "claude", "models", "agents"]
+  },
+  {
+    "id": "openrouter-models",
+    "name": "OpenRouter Models",
+    "type": "rss",
+    "url": "https://openrouter.ai/api/v1/models?use_rss=true",
+    "priority": 96,
+    "tags": ["openrouter", "models", "routing", "pricing"]
+  },
+  {
+    "id": "huggingface-blog",
+    "name": "Hugging Face Blog",
+    "type": "rss",
+    "url": "https://huggingface.co/blog/feed.xml",
+    "priority": 90,
+    "tags": ["open-source", "models", "inference"]
+  },
+  {
+    "id": "aws-ml-blog",
+    "name": "AWS Machine Learning Blog",
+    "type": "rss",
+    "url": "https://aws.amazon.com/blogs/machine-learning/feed/",
+    "priority": 82,
+    "tags": ["aws", "bedrock", "mlops", "production-ai"]
+  },
+  {
+    "id": "microsoft-semantic-kernel",
+    "name": "Microsoft Semantic Kernel",
+    "type": "rss",
+    "url": "https://devblogs.microsoft.com/semantic-kernel/feed/",
+    "priority": 82,
+    "tags": ["agents", "semantic-kernel", "dotnet", "developer-tools"]
+  },
+  {
+    "id": "google-research",
+    "name": "Google Research Blog",
+    "type": "rss",
+    "url": "https://research.google/blog/rss/",
+    "priority": 80,
+    "tags": ["google", "gemini", "research", "models"]
+  },
+  {
+    "id": "ollama-blog",
+    "name": "Ollama Blog",
+    "type": "rss",
+    "url": "https://ollama.com/blog/rss.xml",
+    "priority": 80,
+    "tags": ["local-models", "open-source", "developer-tools"]
+  },
+  {
+    "id": "github-ai",
+    "name": "GitHub AI and ML",
+    "type": "rss",
+    "url": "https://github.blog/ai-and-ml/feed/",
+    "priority": 78,
+    "tags": ["github", "copilot", "developer-tools"]
+  },
+  {
+    "id": "cloudflare-ai",
+    "name": "Cloudflare AI",
+    "type": "rss",
+    "url": "https://blog.cloudflare.com/tag/ai/rss/",
+    "priority": 76,
+    "tags": ["cloudflare", "workers-ai", "edge", "inference"]
+  },
+  {
+    "id": "together-ai",
+    "name": "Together AI Blog",
+    "type": "rss",
+    "url": "https://www.together.ai/blog/rss.xml",
+    "priority": 74,
+    "tags": ["inference", "open-source", "models"]
+  },
+  {
+    "id": "pytorch-blog",
+    "name": "PyTorch Blog",
+    "type": "rss",
+    "url": "https://pytorch.org/blog/feed.xml",
+    "priority": 72,
+    "tags": ["pytorch", "ml", "inference", "frameworks"]
+  },
+  {
+    "id": "nvidia-developer",
+    "name": "NVIDIA Developer Blog",
+    "type": "atom",
+    "url": "https://developer.nvidia.com/blog/feed/",
+    "priority": 72,
+    "tags": ["nvidia", "gpu", "inference", "models"]
+  },
+  {
+    "id": "databricks",
+    "name": "Databricks Blog",
+    "type": "rss",
+    "url": "https://www.databricks.com/feed",
+    "priority": 66,
+    "tags": ["data", "mlops", "agents", "production-ai"]
+  },
+  {
+    "id": "weaviate",
+    "name": "Weaviate Blog",
+    "type": "rss",
+    "url": "https://weaviate.io/blog/rss.xml",
+    "priority": 64,
+    "tags": ["vector-db", "rag", "search"]
+  },
+  {
+    "id": "zed-blog",
+    "name": "Zed Blog",
+    "type": "rss",
+    "url": "https://zed.dev/blog.rss",
+    "priority": 62,
+    "tags": ["editor", "developer-tools", "ai-coding"]
+  },
+  {
+    "id": "infoq",
+    "name": "InfoQ Software Engineering",
+    "type": "rss",
+    "url": "https://www.infoq.com/feed/",
+    "priority": 60,
+    "tags": ["software-engineering", "architecture", "ai"]
+  },
+  {
+    "id": "simon-willison",
+    "name": "Simon Willison",
+    "type": "atom",
+    "url": "https://simonwillison.net/atom/everything/",
+    "priority": 58,
+    "tags": ["llm-practice", "developer-tools"]
+  },
+  {
+    "id": "lmarena",
+    "name": "LMArena Blog",
+    "type": "rss",
+    "url": "https://blog.lmarena.ai/feed",
+    "priority": 56,
+    "tags": ["benchmarks", "models", "evals"]
+  },
+  {
+    "id": "latent-space",
+    "name": "Latent Space",
+    "type": "rss",
+    "url": "https://www.latent.space/feed",
+    "priority": 54,
+    "tags": ["ai-engineering", "models", "agents"]
+  },
+  {
+    "id": "practical-ai",
+    "name": "Practical AI",
+    "type": "rss",
+    "url": "https://changelog.com/practicalai/feed",
+    "priority": 48,
+    "tags": ["practical-ai", "podcast", "engineering"]
+  },
+  {
+    "id": "pragmatic-engineer",
+    "name": "The Pragmatic Engineer",
+    "type": "rss",
+    "url": "https://newsletter.pragmaticengineer.com/feed",
+    "priority": 42,
+    "tags": ["software-engineering", "developer-workflows"]
+  }
+]

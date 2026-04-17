@@ -3,6 +3,11 @@ import crypto from "node:crypto";
 import { serviceEnabled } from "./config.js";
 import { truncateText } from "./text.js";
 
+function slackSafeText(text) {
+  const slackMessageLimit = Number.parseInt(process.env.SLACK_MESSAGE_LIMIT || "2800", 10);
+  return truncateText(formatForSlack(text), Number.isFinite(slackMessageLimit) ? slackMessageLimit : 2800);
+}
+
 // Ajusta Markdown comum/WhatsApp para um formato que o Slack renderiza melhor.
 export function formatForSlack(text) {
   return String(text || "")
@@ -27,7 +32,11 @@ export async function sendSlackMessage(text) {
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: truncateText(formatForSlack(text), 3500) }),
+      body: JSON.stringify({
+        text: slackSafeText(text),
+        unfurl_links: false,
+        unfurl_media: false,
+      }),
     });
 
     const body = await response.text();
@@ -121,7 +130,9 @@ export async function postSlackMessage({ channel, text, threadTs }) {
       },
       body: JSON.stringify({
         channel,
-        text: truncateText(formatForSlack(text), 3500),
+        text: slackSafeText(text),
+        unfurl_links: false,
+        unfurl_media: false,
         ...(threadTs ? { thread_ts: threadTs } : {}),
       }),
     });

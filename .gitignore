@@ -11,5 +11,8 @@ npm-debug.log*
 # Backup exports
 *.tar.gz
 
+# Temporary local planning files
+.tmp/
+
 # OS
 .DS_Store

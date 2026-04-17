@@ -3,7 +3,7 @@ import { callOpenRouter } from "./openrouter.js";
 import { getServiceStatus } from "./config.js";
 import { suggestPosts } from "./suggestions.js";
 import { summarizeHotTopics } from "./summary.js";
-import { truncateText } from "./text.js";
+import { compactPlainText, truncateText } from "./text.js";
 
 function hasText(value) {
   return String(value || "").trim().length > 0;
@@ -115,7 +115,7 @@ function postTitle(post) {
 }
 
 function postBody(post) {
-  return post.body || post.content || post.description || "";
+  return compactPlainText(post.body || post.content || post.description || "", 900);
 }
 
 function postUrl(post) {
@@ -218,12 +218,13 @@ export async function getTopLikedPostToday({ circlePosts = [] } = {}) {
 
   const top = posts[0];
   const url = postUrl(top.post);
+  const body = postBody(top.post);
   return [
     "*Post mais curtido de hoje*",
-    `Titulo: ${postTitle(top.post)}`,
-    `Curtidas/reacoes: ${top.likes}`,
-    url ? `Link: ${url}` : "Link: nao informado pela API",
-    postBody(top.post) ? `Resumo: ${truncateText(postBody(top.post), 500)}` : "Resumo: sem texto retornado pela API",
+    `- *Titulo:* ${postTitle(top.post)}`,
+    `- *Curtidas/reacoes:* ${top.likes}`,
+    url ? `- *Link:* <${url}|Abrir post no Circle>` : "- *Link:* nao informado pela API",
+    body ? `- *Resumo:* ${truncateText(body, 420)}` : "- *Resumo:* sem texto retornado pela API",
   ].join("\n");
 }
 
@@ -271,18 +272,33 @@ export async function getCommunityPostIdeas({ circlePosts = [], whatsappMessages
 // Propoe posts usando noticias recentes de IA, mas pede conexao clara com dores reais quando existirem.
 export async function getAiNewsPostIdeas({ circlePosts = [], whatsappMessages = [] } = {}) {
   const news = await fetchAiNews();
-  const newsText = news.map((item) => `- ${item.title} (${item.link})`).join("\n");
+  const newsText = news
+    .map((item) => {
+      const parts = [`- [${item.source}] ${item.title}`];
+      if (item.developerImpact) parts.push(`impacto=${item.developerImpact}`);
+      if (item.summary) parts.push(`contexto=${truncateText(item.summary, 180)}`);
+      if (item.link) parts.push(`link=${item.link}`);
+      return parts.join(" | ");
+    })
+    .join("\n");
   const communityContext = await summarizeHotTopics({ circlePosts, whatsappMessages });
 
   const result = await callOpenRouter([
     {
       role: "system",
       content:
-        "Proponha posts baseados em noticias recentes de IA. Priorize conexao com dores reais da comunidade. Se nao houver dores reais, marque as ideias como inspiracoes gerais, nao como demandas da comunidade.",
+        [
+          "Proponha posts para uma comunidade de desenvolvedores que usam IA para programar.",
+          "Use somente as noticias e o contexto da comunidade fornecidos.",
+          "Cada ideia precisa ter: titulo, porque importa para devs, conexao com a comunidade, evidencia e formato recomendado.",
+          "Se nao houver conexao real com a comunidade, marque como inspiracao geral e explique que falta validacao.",
+          "Priorize releases de modelos, APIs, SDKs, agentes, coding tools, seguranca, benchmarks e mudancas de preco/limite.",
+          "Gere no maximo 3 ideias curtas para Slack. Nao escreva texto longo.",
+        ].join(" "),
     },
     {
       role: "user",
-      content: truncateText(`Noticias:\n${newsText || "Sem noticias disponiveis."}\n\nContexto da comunidade:\n${communityContext}`, 5000),
+      content: truncateText(`Noticias tecnicas recentes:\n${newsText || "Sem noticias disponiveis."}\n\nContexto da comunidade:\n${communityContext}`, 5000),
     },
   ]);
 

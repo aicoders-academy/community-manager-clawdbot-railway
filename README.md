@@ -43,10 +43,14 @@ Optional:
 - `WHATSAPP_API_URL` and `WHATSAPP_API_KEY` — accepted aliases for the Evolution API URL/key.
 - `ALLOWED_GROUPS` — comma-separated WhatsApp group IDs allowed for processing. Messages from every other chat are ignored.
 - `EVOLUTION_INSTANCE` — optional default Evolution instance name for outbound messages.
-- `AI_NEWS_RSS_URL` — optional RSS feed used for AI news suggestions.
+- `AI_NEWS_RSS_URLS` — optional comma-separated RSS feeds to add before the curated AI/dev source list.
+- `AI_NEWS_RSS_URL` — optional compatibility alias for one RSS feed.
+- `AI_NEWS_SOURCES_FILE` — optional path to a JSON source list. Defaults to `src/community-manager/news-sources.json`.
+- `AI_NEWS_SOURCE_TIMEOUT_MS` — optional per-source fetch timeout. Defaults to `8000`.
 - `SLACK_WEBHOOK_URL` — optional Slack Incoming Webhook used to send task digests.
 - `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` — enable Slack mentions/DMs via Events API.
 - `SLACK_ALLOWED_CHANNELS` — optional comma-separated Slack channel IDs allowed to talk to the bot.
+- `SLACK_MESSAGE_LIMIT` — optional max Slack text size. Defaults to `2800` to avoid overlong messages.
 
 ## Community Manager Agent
 
@@ -70,6 +74,8 @@ Endpoints:
 The `/community-manager/*` endpoints use the same Basic Auth password as `/setup`. The webhook path remains public so Evolution API can call it.
 
 If an API key is missing, that integration logs a warning and returns an empty/disabled result instead of crashing the app. This allows using Circle without WhatsApp, WhatsApp without Circle, or running without OpenRouter while wiring credentials.
+
+AI news suggestions use a curated source list focused on developer-relevant model releases, APIs, SDKs, agents, security and tooling updates. The default list lives in `src/community-manager/news-sources.json` so sources can be maintained without editing the news parser code. Set `AI_NEWS_RSS_URLS` to prepend your own feeds, or `AI_NEWS_SOURCES_FILE` to replace the bundled JSON list.
 
 ### Slack mentions and DMs
 
