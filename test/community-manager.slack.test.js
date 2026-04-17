@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import test from "node:test";
 
 import {
+  formatForSlack,
   formatSlackTaskDigest,
   isSlackChannelAllowed,
   isSlackTaskRequest,
@@ -20,6 +21,16 @@ test("formatSlackTaskDigest includes summary and suggestions", () => {
   assert.match(message, /Community Manager - tarefas sugeridas/);
   assert.match(message, /Comunidade quer ajuda com agentes/);
   assert.match(message, /Post sobre automacoes com IA/);
+});
+
+test("formatForSlack converts common Markdown to Slack-readable text", () => {
+  const message = formatForSlack("### Destaques\n\n1.  **Claude Code**\n    *   **Tópico:** Routines\n\n");
+
+  assert.match(message, /\*Destaques\*/);
+  assert.match(message, /1\. \*Claude Code\*/);
+  assert.match(message, /- \*Tópico:\* Routines/);
+  assert.doesNotMatch(message, /\*\*/);
+  assert.doesNotMatch(message, /###/);
 });
 
 test("verifySlackRequest validates Slack signature", () => {

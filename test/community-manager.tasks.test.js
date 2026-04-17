@@ -68,6 +68,52 @@ test("weekly highlights do not require WhatsApp when Circle is configured", asyn
   }
 });
 
+test("weekly highlights sends named metrics and Slack formatting instructions to OpenRouter", async () => {
+  const previousApiKey = process.env.OPENROUTER_API_KEY;
+  const previousFetch = globalThis.fetch;
+  let requestBody;
+
+  process.env.OPENROUTER_API_KEY = "openrouter-key";
+
+  globalThis.fetch = async (_url, options) => {
+    requestBody = JSON.parse(options.body);
+    return {
+      ok: true,
+      async json() {
+        return { choices: [{ message: { content: "*Destaques*\n- Claude Code: 9 curtidas e 2 comentarios." } }] };
+      },
+    };
+  };
+
+  try {
+    const result = await getWeeklyHighlights({
+      circlePosts: [
+        {
+          title: "Claude Code Desktop",
+          created_at: new Date().toISOString(),
+          likes_count: 9,
+          comments_count: 2,
+          body: "Redesign completo e routines.",
+        },
+      ],
+      whatsappMessages: [],
+    });
+
+    const systemPrompt = requestBody.messages[0].content;
+    const userPrompt = requestBody.messages[1].content;
+
+    assert.match(result, /9 curtidas/);
+    assert.match(systemPrompt, /Slack/i);
+    assert.match(systemPrompt, /Nunca escreva apenas 'engajamento 7'/);
+    assert.match(userPrompt, /9 curtidas, 2 comentarios/);
+    assert.doesNotMatch(userPrompt, /engajamento=/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousApiKey;
+  }
+});
+
 test("answerCommunityManagerChat answers casual chat without requiring community data", async () => {
   const answer = await answerCommunityManagerChat({ prompt: "tudo bem?", circlePosts: [], whatsappMessages: [] });
 
