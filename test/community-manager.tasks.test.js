@@ -137,3 +137,24 @@ test("getTopLikedPostToday returns the most liked Circle post from today", async
   assert.match(result, /12/);
   assert.doesNotMatch(result, /Ontem/);
 });
+
+test("getTopLikedPostToday strips Circle HTML and formats Slack link compactly", async () => {
+  const today = new Date().toISOString();
+
+  const result = await getTopLikedPostToday({
+    circlePosts: [
+      {
+        title: "Vaga remota",
+        created_at: today,
+        likes_count: 4,
+        url: "https://comunidade.example/post",
+        body: '<div><p>Fala devs! <strong>Nova vaga</strong></p><p>Stack: IA e agentes.</p></div>',
+      },
+    ],
+  });
+
+  assert.match(result, /\*Post mais curtido de hoje\*/);
+  assert.match(result, /<https:\/\/comunidade\.example\/post\|Abrir post no Circle>/);
+  assert.match(result, /Fala devs! Nova vaga/);
+  assert.doesNotMatch(result, /<div>|<p>|<strong>/);
+});
