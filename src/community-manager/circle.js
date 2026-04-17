@@ -1,7 +1,7 @@
 import { serviceEnabled } from "./config.js";
 
 let circleAdminV2PostsUnavailable = false;
-let loggedCircleV1Fallback = false;
+let loggedCircleFallback = false;
 
 function parseCircleRecords(json) {
   if (Array.isArray(json?.records)) return json.records;
@@ -34,26 +34,19 @@ function circleBaseUrl() {
 }
 
 function circlePostsUrl({ limit, page, spaceId }) {
-  if (spaceId && !circleAdminV2PostsUnavailable) {
-    const url = new URL(`${circleBaseUrl()}/admin/v2/comments/posts`);
-    url.searchParams.set("space_id", spaceId);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("per_page", String(limit));
-    url.searchParams.set("status", "published");
-    return { url, mode: "admin-v2" };
-  }
-
-  const url = new URL(`${circleBaseUrl()}/headless/admin/v1/posts`);
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("per_page", String(limit));
-  return { url, mode: "admin-v1-fallback" };
-}
-
-function circleV1PostsUrl({ limit, page, spaceId }) {
-  const url = new URL(`${circleBaseUrl()}/headless/admin/v1/posts`);
+  const url = new URL(`${circleBaseUrl()}/admin/v2/posts`);
   url.searchParams.set("page", String(page));
   url.searchParams.set("per_page", String(limit));
   if (spaceId) url.searchParams.set("space_id", spaceId);
+  return { url, mode: "admin-v2-posts" };
+}
+
+function circleCommentsPostsUrl({ limit, page, spaceId }) {
+  const url = new URL(`${circleBaseUrl()}/admin/v2/comments/posts`);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("per_page", String(limit));
+  if (spaceId) url.searchParams.set("space_id", spaceId);
+  url.searchParams.set("status", "published");
   return url;
 }
 
@@ -122,19 +115,21 @@ async function requestCirclePosts({ token, url, spaceId }) {
 
 async function fetchCirclePostsPage({ token, limit, page, spaceId }) {
   const { url, mode } = circlePostsUrl({ limit, page, spaceId });
-  if (mode === "admin-v1-fallback") {
-    if (!loggedCircleV1Fallback) {
-      console.log("[community-manager] Usando Admin API v1 para posts do Circle.");
-      loggedCircleV1Fallback = true;
+
+  if (circleAdminV2PostsUnavailable) {
+    if (!loggedCircleFallback) {
+      console.log("[community-manager] Usando endpoint alternativo de posts do Circle.");
+      loggedCircleFallback = true;
     }
+    return (await requestCirclePosts({ token, url: circleCommentsPostsUrl({ limit, page, spaceId }), spaceId })).posts;
   }
 
   const result = await requestCirclePosts({ token, url, spaceId });
-  if (result.ok || mode !== "admin-v2" || result.status !== 404) return result.posts;
+  if (result.ok || mode !== "admin-v2-posts" || result.status !== 404) return result.posts;
 
-  const fallbackUrl = circleV1PostsUrl({ limit, page, spaceId });
+  const fallbackUrl = circleCommentsPostsUrl({ limit, page, spaceId });
   circleAdminV2PostsUnavailable = true;
-  console.log("[community-manager] Circle Admin v2 posts retornou 404; usando Admin API v1 para posts nesta instancia.");
+  console.log("[community-manager] Circle Admin v2 /posts retornou 404; usando endpoint alternativo de posts nesta instancia.");
   return (await requestCirclePosts({ token, url: fallbackUrl, spaceId })).posts;
 }
 
