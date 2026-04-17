@@ -1,5 +1,8 @@
 import { serviceEnabled } from "./config.js";
 
+let circleAdminV2PostsUnavailable = false;
+let loggedCircleV1Fallback = false;
+
 function parseCircleRecords(json) {
   if (Array.isArray(json?.records)) return json.records;
   if (Array.isArray(json?.posts)) return json.posts;
@@ -31,7 +34,7 @@ function circleBaseUrl() {
 }
 
 function circlePostsUrl({ limit, page, spaceId }) {
-  if (spaceId) {
+  if (spaceId && !circleAdminV2PostsUnavailable) {
     const url = new URL(`${circleBaseUrl()}/admin/v2/comments/posts`);
     url.searchParams.set("space_id", spaceId);
     url.searchParams.set("page", String(page));
@@ -120,14 +123,18 @@ async function requestCirclePosts({ token, url, spaceId }) {
 async function fetchCirclePostsPage({ token, limit, page, spaceId }) {
   const { url, mode } = circlePostsUrl({ limit, page, spaceId });
   if (mode === "admin-v1-fallback") {
-    console.warn("[community-manager] CIRCLE_SPACE_IDS ausente; usando fallback Admin API v1 para posts do Circle.");
+    if (!loggedCircleV1Fallback) {
+      console.log("[community-manager] Usando Admin API v1 para posts do Circle.");
+      loggedCircleV1Fallback = true;
+    }
   }
 
   const result = await requestCirclePosts({ token, url, spaceId });
   if (result.ok || mode !== "admin-v2" || result.status !== 404) return result.posts;
 
   const fallbackUrl = circleV1PostsUrl({ limit, page, spaceId });
-  console.warn(`[community-manager] Circle Admin v2 posts retornou 404 para space_id=${spaceId}; tentando fallback Admin API v1.`);
+  circleAdminV2PostsUnavailable = true;
+  console.log("[community-manager] Circle Admin v2 posts retornou 404; usando Admin API v1 para posts nesta instancia.");
   return (await requestCirclePosts({ token, url: fallbackUrl, spaceId })).posts;
 }
 
@@ -140,9 +147,14 @@ export async function fetchCirclePosts(limit = 20) {
     const configuredSpaceIds = circleSpaceIds();
     const spaceIds = configuredSpaceIds.length > 0 ? configuredSpaceIds : await fetchCircleSpaceIds(token);
     const perSpaceLimit = spaceIds.length > 0 ? Math.max(limit, Math.ceil(limit / spaceIds.length)) : limit;
-    const postsBySpace = spaceIds.length > 0
-      ? await Promise.all(spaceIds.map((spaceId) => fetchCirclePostsPage({ token, limit: perSpaceLimit, page: 1, spaceId })))
-      : [await fetchCirclePostsPage({ token, limit, page: 1 })];
+    const postsBySpace = [];
+    if (spaceIds.length > 0) {
+      for (const spaceId of spaceIds) {
+        postsBySpace.push(await fetchCirclePostsPage({ token, limit: perSpaceLimit, page: 1, spaceId }));
+      }
+    } else {
+      postsBySpace.push(await fetchCirclePostsPage({ token, limit, page: 1 }));
+    }
 
     return postsBySpace
       .flat()
