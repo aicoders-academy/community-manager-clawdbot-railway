@@ -3,6 +3,21 @@ import crypto from "node:crypto";
 import { serviceEnabled } from "./config.js";
 import { truncateText } from "./text.js";
 
+// Ajusta Markdown comum/WhatsApp para um formato que o Slack renderiza melhor.
+export function formatForSlack(text) {
+  return String(text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
+    .replace(/\*\*([^*\n][^*\n]*?)\*\*/g, "*$1*")
+    .replace(/^\s{2,}[*-]\s+/gm, "- ")
+    .replace(/^\s{2,}(\d+)\.\s+/gm, "$1. ")
+    .replace(/^(\d+\.)\s{2,}/gm, "$1 ")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // Envia uma mensagem simples para Slack usando Incoming Webhook.
 export async function sendSlackMessage(text) {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -12,7 +27,7 @@ export async function sendSlackMessage(text) {
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: truncateText(text, 3500) }),
+      body: JSON.stringify({ text: truncateText(formatForSlack(text), 3500) }),
     });
 
     const body = await response.text();
@@ -106,7 +121,7 @@ export async function postSlackMessage({ channel, text, threadTs }) {
       },
       body: JSON.stringify({
         channel,
-        text: truncateText(text, 3500),
+        text: truncateText(formatForSlack(text), 3500),
         ...(threadTs ? { thread_ts: threadTs } : {}),
       }),
     });

@@ -3,7 +3,7 @@ export { callOpenRouter } from "./community-manager/openrouter.js";
 export { moderateMessage } from "./community-manager/moderation.js";
 export { fetchAiNews } from "./community-manager/news.js";
 export { registerCommunityManagerRoutes } from "./community-manager/routes.js";
-export { formatSlackTaskDigest, sendSlackMessage } from "./community-manager/slack.js";
+export { formatForSlack, formatSlackTaskDigest, sendSlackMessage } from "./community-manager/slack.js";
 export {
   isSlackChannelAllowed,
   isSlackTaskRequest,

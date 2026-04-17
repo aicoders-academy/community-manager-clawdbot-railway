@@ -77,17 +77,37 @@ function postLikes(post) {
   return null;
 }
 
-function postScore(post) {
-  const fields = [
-    post.likes_count,
-    post.like_count,
-    post.reactions_count,
-    post.comments_count,
-    post.comment_count,
-    post.views_count,
-  ];
+function numberFromFields(post, fields) {
+  for (const field of fields) {
+    const parsed = Number.parseInt(String(post[field] ?? ""), 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
 
-  return fields.reduce((total, value) => total + (Number.parseInt(String(value ?? "0"), 10) || 0), 0);
+function postMetrics(post) {
+  return {
+    likes: numberFromFields(post, ["likes_count", "like_count", "likes"]),
+    reactions: numberFromFields(post, ["reactions_count", "reaction_count"]),
+    comments: numberFromFields(post, ["comments_count", "comment_count", "comments"]),
+    views: numberFromFields(post, ["views_count", "view_count", "views"]),
+  };
+}
+
+function postScore(post) {
+  const metrics = postMetrics(post);
+  const reactions = metrics.reactions && !metrics.likes ? metrics.reactions : 0;
+  return metrics.likes + reactions + metrics.comments + metrics.views;
+}
+
+function postMetricSummary(post) {
+  const metrics = postMetrics(post);
+  const pieces = [];
+  if (metrics.likes) pieces.push(`${metrics.likes} ${metrics.likes === 1 ? "curtida" : "curtidas"}`);
+  if (metrics.reactions && !metrics.likes) pieces.push(`${metrics.reactions} ${metrics.reactions === 1 ? "reacao" : "reacoes"}`);
+  if (metrics.comments) pieces.push(`${metrics.comments} ${metrics.comments === 1 ? "comentario" : "comentarios"}`);
+  if (metrics.views) pieces.push(`${metrics.views} ${metrics.views === 1 ? "visualizacao" : "visualizacoes"}`);
+  return pieces.join(", ");
 }
 
 function postTitle(post) {
@@ -127,8 +147,8 @@ function circleLines(circlePosts, limit = 20) {
     .slice(0, limit)
     .map((post) => {
       const pieces = [`- ${postTitle(post)}`];
-      const score = postScore(post);
-      if (score) pieces.push(`engajamento=${score}`);
+      const metrics = postMetricSummary(post);
+      if (metrics) pieces.push(`metricas=${metrics}`);
       const url = postUrl(post);
       if (url) pieces.push(`link=${url}`);
       const body = truncateText(postBody(post), 280);
@@ -158,7 +178,14 @@ export async function getWeeklyHighlights({ circlePosts = [], whatsappMessages =
     {
       role: "system",
       content:
-        "Liste destaques da semana da comunidade em portugues. Use apenas as evidencias recebidas. Inclua posts, comentarios ou temas recorrentes quando houver. Nao invente.",
+        [
+          "Liste destaques da semana da comunidade em portugues do Brasil.",
+          "Use apenas as evidencias recebidas. Inclua posts, comentarios ou temas recorrentes quando houver. Nao invente.",
+          "A resposta sera enviada no Slack: use *negrito do Slack*, bullets simples com -, frases curtas e espacos entre blocos.",
+          "Nao use Markdown de WhatsApp ou GitHub: nao use **negrito**, ### titulos, bullets aninhados profundos ou espacos de indentacao.",
+          "Quando citar numeros, explique o que eles representam: curtidas, comentarios, reacoes ou visualizacoes. Nunca escreva apenas 'engajamento 7'.",
+          "Se houver uma soma aproximada, diga que e um sinal combinado e mostre os componentes disponiveis.",
+        ].join(" "),
     },
     {
       role: "user",
