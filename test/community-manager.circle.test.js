@@ -51,9 +51,9 @@ test("fetchCirclePosts uses Circle Admin v2 posts endpoint when CIRCLE_SPACE_ID 
     const posts = await fetchCirclePosts(20);
     const url = new URL(requestedUrl);
 
-    assert.equal(url.pathname, "/api/admin/v2/comments/posts");
+    assert.equal(url.pathname, "/api/admin/v2/posts");
     assert.equal(url.searchParams.get("space_id"), "999");
-    assert.equal(url.searchParams.get("status"), "published");
+    assert.equal(url.searchParams.get("status"), null);
     assert.equal(requestedHeaders.Authorization, "Bearer circle-token");
     assert.equal(posts[0].body, "<p>Conteudo</p>");
     assert.equal(posts[0].created_at, "2026-04-16T10:00:00.000Z");
@@ -63,7 +63,7 @@ test("fetchCirclePosts uses Circle Admin v2 posts endpoint when CIRCLE_SPACE_ID 
   }
 });
 
-test("fetchCirclePosts falls back to Admin v1 posts endpoint without CIRCLE_SPACE_ID", async () => {
+test("fetchCirclePosts uses Circle Admin v2 posts endpoint without CIRCLE_SPACE_ID", async () => {
   const previousEnv = {
     CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
     COMMUNITY_ID: process.env.COMMUNITY_ID,
@@ -92,7 +92,7 @@ test("fetchCirclePosts falls back to Admin v1 posts endpoint without CIRCLE_SPAC
 
   try {
     await fetchCirclePosts(10);
-    assert.equal(new URL(requestedUrl).pathname, "/api/headless/admin/v1/posts");
+    assert.equal(new URL(requestedUrl).pathname, "/api/admin/v2/posts");
   } finally {
     globalThis.fetch = previousFetch;
     restoreEnv(previousEnv);
@@ -203,7 +203,7 @@ test("fetchCirclePosts discovers all Circle spaces when no space IDs are configu
   }
 });
 
-test("fetchCirclePosts falls back to Admin v1 when Admin v2 posts returns 404", async () => {
+test("fetchCirclePosts falls back to comments posts endpoint when Admin v2 posts returns 404", async () => {
   const previousEnv = {
     CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
     CIRCLE_SPACE_IDS: process.env.CIRCLE_SPACE_IDS,
@@ -220,7 +220,7 @@ test("fetchCirclePosts falls back to Admin v1 when Admin v2 posts returns 404", 
     const parsed = new URL(String(url));
     requestedPaths.push(parsed.pathname);
 
-    if (parsed.pathname === "/api/admin/v2/comments/posts") {
+    if (parsed.pathname === "/api/admin/v2/posts") {
       return { ok: false, status: 404 };
     }
 
@@ -243,7 +243,7 @@ test("fetchCirclePosts falls back to Admin v1 when Admin v2 posts returns 404", 
 
   try {
     const posts = await fetchCirclePosts(10);
-    assert.deepEqual(requestedPaths, ["/api/admin/v2/comments/posts", "/api/headless/admin/v1/posts"]);
+    assert.deepEqual(requestedPaths, ["/api/admin/v2/posts", "/api/admin/v2/comments/posts"]);
     assert.equal(posts[0].title, "Fallback post");
     assert.equal(posts[0].source_space_id, "111");
   } finally {
@@ -252,7 +252,7 @@ test("fetchCirclePosts falls back to Admin v1 when Admin v2 posts returns 404", 
   }
 });
 
-test("fetchCirclePosts reuses Admin v1 after Admin v2 posts has returned 404", async () => {
+test("fetchCirclePosts reuses comments posts endpoint after Admin v2 posts has returned 404", async () => {
   const previousEnv = {
     CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
     CIRCLE_SPACE_IDS: process.env.CIRCLE_SPACE_IDS,
@@ -267,7 +267,7 @@ test("fetchCirclePosts reuses Admin v1 after Admin v2 posts has returned 404", a
     const parsed = new URL(String(url));
     requestedPaths.push(parsed.pathname);
 
-    if (parsed.pathname === "/api/admin/v2/comments/posts") {
+    if (parsed.pathname === "/api/admin/v2/posts") {
       return { ok: false, status: 404 };
     }
 
@@ -283,8 +283,8 @@ test("fetchCirclePosts reuses Admin v1 after Admin v2 posts has returned 404", a
   try {
     await fetchCirclePosts(10);
     assert.deepEqual(requestedPaths, [
-      "/api/headless/admin/v1/posts",
-      "/api/headless/admin/v1/posts",
+      "/api/admin/v2/comments/posts",
+      "/api/admin/v2/comments/posts",
     ]);
   } finally {
     globalThis.fetch = previousFetch;
