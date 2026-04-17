@@ -202,3 +202,52 @@ test("fetchCirclePosts discovers all Circle spaces when no space IDs are configu
     restoreEnv(previousEnv);
   }
 });
+
+test("fetchCirclePosts falls back to Admin v1 when Admin v2 posts returns 404", async () => {
+  const previousEnv = {
+    CIRCLE_API_TOKEN: process.env.CIRCLE_API_TOKEN,
+    CIRCLE_SPACE_IDS: process.env.CIRCLE_SPACE_IDS,
+    CIRCLE_SPACE_ID: process.env.CIRCLE_SPACE_ID,
+  };
+  const previousFetch = globalThis.fetch;
+  const requestedPaths = [];
+
+  process.env.CIRCLE_API_TOKEN = "circle-token";
+  process.env.CIRCLE_SPACE_IDS = "111";
+  delete process.env.CIRCLE_SPACE_ID;
+
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    requestedPaths.push(parsed.pathname);
+
+    if (parsed.pathname === "/api/admin/v2/comments/posts") {
+      return { ok: false, status: 404 };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          records: [
+            {
+              title: "Fallback post",
+              created_at: "2026-04-16T10:00:00.000Z",
+              likes_count: 7,
+            },
+          ],
+        };
+      },
+    };
+  };
+
+  try {
+    const posts = await fetchCirclePosts(10);
+    assert.deepEqual(requestedPaths, ["/api/admin/v2/comments/posts", "/api/headless/admin/v1/posts"]);
+    assert.equal(posts[0].title, "Fallback post");
+    assert.equal(posts[0].source_space_id, "111");
+  } finally {
+    globalThis.fetch = previousFetch;
+    restoreEnv(previousEnv);
+  }
+});

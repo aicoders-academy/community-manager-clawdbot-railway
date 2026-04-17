@@ -46,6 +46,14 @@ function circlePostsUrl({ limit, page, spaceId }) {
   return { url, mode: "admin-v1-fallback" };
 }
 
+function circleV1PostsUrl({ limit, page, spaceId }) {
+  const url = new URL(`${circleBaseUrl()}/headless/admin/v1/posts`);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("per_page", String(limit));
+  if (spaceId) url.searchParams.set("space_id", spaceId);
+  return url;
+}
+
 function extractSpaceIds(json) {
   const records = Array.isArray(json?.records) ? json.records : Array.isArray(json?.spaces) ? json.spaces : Array.isArray(json) ? json : [];
   return records
@@ -86,12 +94,7 @@ async function fetchCircleSpaceIds(token) {
   return [];
 }
 
-async function fetchCirclePostsPage({ token, limit, page, spaceId }) {
-  const { url, mode } = circlePostsUrl({ limit, page, spaceId });
-  if (mode === "admin-v1-fallback") {
-    console.warn("[community-manager] CIRCLE_SPACE_IDS ausente; usando fallback Admin API v1 para posts do Circle.");
-  }
-
+async function requestCirclePosts({ token, url, spaceId }) {
   const response = await fetch(url, {
     method: "GET",
     headers: {
@@ -103,11 +106,29 @@ async function fetchCirclePostsPage({ token, limit, page, spaceId }) {
 
   if (!response.ok) {
     console.warn(`[community-manager] Circle retornou HTTP ${response.status} para ${url.pathname}.`);
-    return [];
+    return { ok: false, status: response.status, posts: [] };
   }
 
   const json = await response.json();
-  return parseCircleRecords(json).map((post) => normalizeCirclePost({ ...post, source_space_id: spaceId || post.space_id }));
+  return {
+    ok: true,
+    status: response.status,
+    posts: parseCircleRecords(json).map((post) => normalizeCirclePost({ ...post, source_space_id: spaceId || post.space_id })),
+  };
+}
+
+async function fetchCirclePostsPage({ token, limit, page, spaceId }) {
+  const { url, mode } = circlePostsUrl({ limit, page, spaceId });
+  if (mode === "admin-v1-fallback") {
+    console.warn("[community-manager] CIRCLE_SPACE_IDS ausente; usando fallback Admin API v1 para posts do Circle.");
+  }
+
+  const result = await requestCirclePosts({ token, url, spaceId });
+  if (result.ok || mode !== "admin-v2" || result.status !== 404) return result.posts;
+
+  const fallbackUrl = circleV1PostsUrl({ limit, page, spaceId });
+  console.warn(`[community-manager] Circle Admin v2 posts retornou 404 para space_id=${spaceId}; tentando fallback Admin API v1.`);
+  return (await requestCirclePosts({ token, url: fallbackUrl, spaceId })).posts;
 }
 
 // Busca posts recentes do Circle usando CIRCLE_API_TOKEN quando configurado.
